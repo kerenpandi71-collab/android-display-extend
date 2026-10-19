@@ -361,6 +361,12 @@ public class MainActivity extends AppCompatActivity {
     crossAppBackCallback.setEnabled(_isOnCrossAppLandingScreen());
   }
 
+  private void _returnToMirrorScreen() {
+    // External screen-mirroring navigation is disabled.
+    _clearCrossAppBackTarget();
+    _updateCrossAppBackState();
+  }
+
   private void _setCrossAppBackTarget(String screen, int destinationId, int displayId) {
     // External mirroring integrations are disabled.
   }
