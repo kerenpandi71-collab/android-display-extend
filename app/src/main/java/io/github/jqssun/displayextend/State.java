@@ -57,7 +57,6 @@ public class State {
   public static volatile IUserService userService;
   public static VirtualDisplay managedVirtualDisplay;
   public static int managedVirtualDisplayHostDisplayId = -1;
-  public static int mirrorDisplayId = -1;
   public static FloatingButtonService floatingButtonService;
   public static Activity isInPureBlackActivity = null;
 
