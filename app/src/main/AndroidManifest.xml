@@ -82,6 +82,11 @@
             android:theme="@style/AppTheme" />
 
         <service
+            android:name=".FloatingKeyboardService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <service
             android:name=".MediaProjectionService"
             android:foregroundServiceType="mediaProjection"
             android:exported="false" />
