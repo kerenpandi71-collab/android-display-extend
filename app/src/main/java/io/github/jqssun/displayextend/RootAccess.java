@@ -29,6 +29,12 @@ public final class RootAccess {
     Process process = null;
     try {
       process = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+      // Wait before reading so a pending Magisk authorization prompt cannot
+      // block this thread forever while readLine() waits for output.
+      if (!process.waitFor(8, TimeUnit.SECONDS)) {
+        process.destroyForcibly();
+        return new Result(false, "Root command timed out or authorization was not completed");
+      }
       StringBuilder output = new StringBuilder();
       try (BufferedReader reader =
           new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -36,10 +42,6 @@ public final class RootAccess {
         while ((line = reader.readLine()) != null) {
           if (output.length() < 4096) output.append(line).append('\n');
         }
-      }
-      if (!process.waitFor(8, TimeUnit.SECONDS)) {
-        process.destroyForcibly();
-        return new Result(false, "Root command timed out");
       }
       int exitCode = process.exitValue();
       String text = output.toString().trim();
