@@ -58,6 +58,8 @@ public class FloatingKeyboardService extends Service {
   private float mouseX = -1f, mouseY = -1f;
   private float lastFingerX, lastFingerY;
   private boolean trackpadMoved;
+  private boolean mouseHoverStarted;
+  private boolean twoFingerGesture;
   private int trackpadButton = MotionEvent.BUTTON_PRIMARY;
   private static final float POINTER_SENSITIVITY = 2.2f;
   private boolean shiftEnabled = false;
@@ -342,14 +344,14 @@ public class FloatingKeyboardService extends Service {
 
   private void addIntegratedTrackpad(LinearLayout panel) {
     TextView label = new TextView(this);
-    label.setText("TRACKPAD  •  Gerak: kursor   •   2 jari: scroll   •   ketuk: klik");
+    label.setText("TRACKPAD  •  Geser: kursor   •   2 jari: scroll   •   ketuk: klik");
     label.setTextColor(Color.rgb(165, 208, 236));
     label.setTextSize(10);
     label.setPadding(dp(4), dp(5), dp(4), dp(7));
     panel.addView(label);
 
     TextView pad = new TextView(this);
-    pad.setText("⠿\n\nTRACKPAD");
+    pad.setText("⠿\\n\\nTRACKPAD");
     pad.setTextColor(Color.rgb(180, 222, 247));
     pad.setTextSize(12);
     pad.setGravity(Gravity.CENTER);
@@ -365,7 +367,8 @@ public class FloatingKeyboardService extends Service {
     pad.setOnTouchListener((v, e) -> {
       if (inputManager == null) {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-          Toast.makeText(this, "Aktifkan dan izinkan Shizuku untuk input mouse. Root saja belum menyediakan jalur mouse ini.", Toast.LENGTH_LONG).show();
+          Toast.makeText(this, "Trackpad membutuhkan Shizuku aktif dan izin diberikan. Root saja belum mengaktifkan jalur mouse.", Toast.LENGTH_LONG).show();
+          State.log("trackpad unavailable: Shizuku InputManager is null");
         }
         return true;
       }
@@ -374,72 +377,112 @@ public class FloatingKeyboardService extends Service {
         lastFingerX = e.getX();
         lastFingerY = e.getY();
         trackpadMoved = false;
-        if (mouseX < 0 || mouseY < 0) {
-          android.view.Display d = ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
-          if (d == null) return true;
-          android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
-          d.getRealMetrics(dm);
-          mouseX = dm.widthPixels / 2f;
-          mouseY = dm.heightPixels / 2f;
-        }
+        twoFingerGesture = false;
+        if (!ensureMousePosition()) return true;
+        injectMouseHover(MotionEvent.ACTION_HOVER_ENTER);
+        mouseHoverStarted = true;
         return true;
       }
       if (action == MotionEvent.ACTION_POINTER_DOWN) {
-        lastFingerX = e.getX(0);
-        lastFingerY = e.getY(0);
+        if (e.getPointerCount() >= 2) {
+          twoFingerGesture = true;
+          lastFingerX = e.getX(0);
+          lastFingerY = e.getY(0);
+        }
         return true;
       }
       if (action == MotionEvent.ACTION_MOVE) {
         if (e.getPointerCount() >= 2) {
+          twoFingerGesture = true;
           float dy = e.getY(0) - lastFingerY;
-          if (Math.abs(dy) > dp(2)) injectMouseScroll(-dy / Math.max(1f, dp(18)));
+          if (Math.abs(dy) >= dp(2)) injectMouseScroll(-dy / Math.max(1f, dp(18)));
           lastFingerX = e.getX(0);
           lastFingerY = e.getY(0);
           trackpadMoved = true;
           return true;
         }
+        if (twoFingerGesture) return true;
         float dx = e.getX() - lastFingerX;
         float dy = e.getY() - lastFingerY;
         if (Math.abs(dx) + Math.abs(dy) > dp(1)) trackpadMoved = true;
         lastFingerX = e.getX();
         lastFingerY = e.getY();
         android.view.Display d = ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
-        if (d == null) return true;
+        if (d == null) {
+          State.log("trackpad target display missing: " + targetDisplayId);
+          return true;
+        }
         android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
         d.getRealMetrics(dm);
-        mouseX = Math.max(0, Math.min(dm.widthPixels - 1, mouseX + dx * POINTER_SENSITIVITY * dm.widthPixels / Math.max(1f, v.getWidth())));
-        mouseY = Math.max(0, Math.min(dm.heightPixels - 1, mouseY + dy * POINTER_SENSITIVITY * dm.heightPixels / Math.max(1f, v.getHeight())));
-        injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
+        float nextX = mouseX + dx * POINTER_SENSITIVITY * dm.widthPixels / Math.max(1f, v.getWidth());
+        float nextY = mouseY + dy * POINTER_SENSITIVITY * dm.heightPixels / Math.max(1f, v.getHeight());
+        mouseX = Math.max(0, Math.min(dm.widthPixels - 1, nextX));
+        mouseY = Math.max(0, Math.min(dm.heightPixels - 1, nextY));
+        injectMouseHover(MotionEvent.ACTION_HOVER_MOVE);
         return true;
       }
       if (action == MotionEvent.ACTION_UP) {
-        if (!trackpadMoved) {
-          injectMouseEvent(MotionEvent.ACTION_DOWN, 0, trackpadButton);
-          injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
+        if (!trackpadMoved && !twoFingerGesture) {
+          injectMouseClick(trackpadButton);
         }
         trackpadButton = MotionEvent.BUTTON_PRIMARY;
+        twoFingerGesture = false;
         return true;
       }
       if (action == MotionEvent.ACTION_POINTER_UP) {
-        lastFingerX = e.getX(0);
-        lastFingerY = e.getY(0);
+        if (e.getPointerCount() <= 2) {
+          lastFingerX = e.getX(0);
+          lastFingerY = e.getY(0);
+        }
         return true;
       }
       if (action == MotionEvent.ACTION_CANCEL) {
         trackpadButton = MotionEvent.BUTTON_PRIMARY;
+        twoFingerGesture = false;
         return true;
       }
       return true;
     });
   }
 
+  private boolean ensureMousePosition() {
+    android.hardware.display.DisplayManager dmgr =
+        (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+    android.view.Display d = dmgr != null ? dmgr.getDisplay(targetDisplayId) : null;
+    if (d == null) {
+      State.log("trackpad cannot initialize pointer: display " + targetDisplayId + " not found");
+      return false;
+    }
+    android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+    d.getRealMetrics(metrics);
+    if (mouseX < 0 || mouseY < 0) {
+      mouseX = Math.max(0, metrics.widthPixels / 2f);
+      mouseY = Math.max(0, metrics.heightPixels / 2f);
+    }
+    return true;
+  }
+
+  private void injectMouseHover(int action) {
+    injectMouseEvent(action, 0, 0);
+  }
+
+  private void injectMouseClick(int button) {
+    if (inputManager == null || !ensureMousePosition()) return;
+    injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
+    injectMouseEvent(MotionEvent.ACTION_BUTTON_PRESS, button, button);
+    injectMouseEvent(MotionEvent.ACTION_BUTTON_RELEASE, button, 0);
+    State.log("trackpad click sent: display=" + targetDisplayId + ", button=" + button);
+  }
+
   private void injectMouseScroll(float amount) {
     if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
     long now = android.os.SystemClock.uptimeMillis();
     MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
-    props[0].id = 0; props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
+    props[0].id = 0;
+    props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
     MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
-    coords[0].x = mouseX; coords[0].y = mouseY;
+    coords[0].x = mouseX;
+    coords[0].y = mouseY;
     coords[0].setAxisValue(MotionEvent.AXIS_VSCROLL, amount);
     MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, props, coords,
         0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0);
@@ -447,28 +490,38 @@ public class FloatingKeyboardService extends Service {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
       boolean accepted = inputManager.injectInputEvent(event, 0);
-      if (!accepted) State.log("trackpad scroll event rejected for display " + targetDisplayId);
-    } catch (Throwable t) { State.log("trackpad scroll injection failed: " + t.getMessage()); }
-    finally { event.recycle(); }
+      if (!accepted) State.log("trackpad scroll rejected: display=" + targetDisplayId);
+    } catch (Throwable t) {
+      State.log("trackpad scroll injection failed: " + t.getMessage());
+    } finally {
+      event.recycle();
+    }
   }
 
   private void injectMouseEvent(int action, int actionButton, int buttonState) {
     if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
     long now = android.os.SystemClock.uptimeMillis();
     MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
-    props[0].id = 0; props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
+    props[0].id = 0;
+    props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
     MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
-    coords[0].x = mouseX; coords[0].y = mouseY;
+    coords[0].x = mouseX;
+    coords[0].y = mouseY;
     MotionEvent event = MotionEvent.obtain(now, now, action, 1, props, coords, 0,
         buttonState, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0);
     try {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
-      if (action == MotionEvent.ACTION_BUTTON_PRESS || action == MotionEvent.ACTION_BUTTON_RELEASE) hidden.setActionButton(actionButton);
+      if (action == MotionEvent.ACTION_BUTTON_PRESS || action == MotionEvent.ACTION_BUTTON_RELEASE) {
+        hidden.setActionButton(actionButton);
+      }
       boolean accepted = inputManager.injectInputEvent(event, 0);
-      if (!accepted) State.log("trackpad mouse event rejected for display " + targetDisplayId + ", action=" + action);
-    } catch (Throwable t) { State.log("trackpad mouse injection failed: " + t.getMessage()); }
-    finally { event.recycle(); }
+      if (!accepted) State.log("trackpad event rejected: display=" + targetDisplayId + ", action=" + action);
+    } catch (Throwable t) {
+      State.log("trackpad event injection failed: " + t.getMessage());
+    } finally {
+      event.recycle();
+    }
   }
 
   private void addGamepadRow(LinearLayout panel, String[] keys) {
