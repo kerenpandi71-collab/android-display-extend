@@ -342,42 +342,49 @@ public class FloatingKeyboardService extends Service {
 
   private void addIntegratedTrackpad(LinearLayout panel) {
     TextView label = new TextView(this);
-    label.setText("TRACKPAD  •  Geser: pointer   •   2 jari: scroll   •   ketuk: klik");
+    label.setText("TRACKPAD  •  Gerak: kursor   •   2 jari: scroll   •   ketuk: klik");
     label.setTextColor(Color.rgb(165, 208, 236));
     label.setTextSize(10);
-    label.setPadding(dp(4), dp(4), dp(4), dp(6));
+    label.setPadding(dp(4), dp(5), dp(4), dp(7));
     panel.addView(label);
+
     TextView pad = new TextView(this);
-    pad.setText("◉\n\nTouchpad");
+    pad.setText("⠿\n\nTRACKPAD");
     pad.setTextColor(Color.rgb(180, 222, 247));
-    pad.setTextSize(13);
+    pad.setTextSize(12);
     pad.setGravity(Gravity.CENTER);
-    pad.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(38, 42, 54)));
     android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-    bg.setColor(Color.rgb(35, 48, 63)); bg.setCornerRadius(dp(16));
-    bg.setStroke(dp(1), Color.rgb(75, 128, 160)); pad.setBackground(bg);
+    bg.setColor(Color.rgb(31, 44, 58));
+    bg.setCornerRadius(dp(16));
+    bg.setStroke(dp(1), Color.rgb(75, 128, 160));
+    pad.setBackground(bg);
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(230));
-    lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
+    lp.setMargins(dp(2), 0, dp(2), dp(4));
+    panel.addView(pad, lp);
+
     pad.setOnTouchListener((v, e) -> {
       if (inputManager == null) {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-          Toast.makeText(this, "Trackpad mouse perlu Shizuku aktif dan diizinkan. Keyboard tetap bisa memakai root.", Toast.LENGTH_LONG).show();
+          Toast.makeText(this, "Aktifkan dan izinkan Shizuku untuk input mouse. Root saja belum menyediakan jalur mouse ini.", Toast.LENGTH_LONG).show();
         }
         return true;
       }
-      final int action = e.getActionMasked();
+      int action = e.getActionMasked();
       if (action == MotionEvent.ACTION_DOWN) {
-        lastFingerX = e.getX(); lastFingerY = e.getY(); trackpadMoved = false;
+        lastFingerX = e.getX();
+        lastFingerY = e.getY();
+        trackpadMoved = false;
         if (mouseX < 0 || mouseY < 0) {
-          android.view.Display d = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+          android.view.Display d = ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
           if (d == null) return true;
-          android.util.DisplayMetrics dm = new android.util.DisplayMetrics(); d.getRealMetrics(dm);
-          mouseX = dm.widthPixels / 2f; mouseY = dm.heightPixels / 2f;
+          android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+          d.getRealMetrics(dm);
+          mouseX = dm.widthPixels / 2f;
+          mouseY = dm.heightPixels / 2f;
         }
         return true;
       }
       if (action == MotionEvent.ACTION_POINTER_DOWN) {
-        // Reset the scroll baseline when the second finger touches down.
         lastFingerX = e.getX(0);
         lastFingerY = e.getY(0);
         return true;
@@ -386,16 +393,20 @@ public class FloatingKeyboardService extends Service {
         if (e.getPointerCount() >= 2) {
           float dy = e.getY(0) - lastFingerY;
           if (Math.abs(dy) > dp(2)) injectMouseScroll(-dy / Math.max(1f, dp(18)));
-          lastFingerX = e.getX(0); lastFingerY = e.getY(0);
+          lastFingerX = e.getX(0);
+          lastFingerY = e.getY(0);
           trackpadMoved = true;
           return true;
         }
-        float dx = e.getX() - lastFingerX, dy = e.getY() - lastFingerY;
+        float dx = e.getX() - lastFingerX;
+        float dy = e.getY() - lastFingerY;
         if (Math.abs(dx) + Math.abs(dy) > dp(1)) trackpadMoved = true;
-        lastFingerX = e.getX(); lastFingerY = e.getY();
-        android.view.Display d = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+        lastFingerX = e.getX();
+        lastFingerY = e.getY();
+        android.view.Display d = ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
         if (d == null) return true;
-        android.util.DisplayMetrics dm = new android.util.DisplayMetrics(); d.getRealMetrics(dm);
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+        d.getRealMetrics(dm);
         mouseX = Math.max(0, Math.min(dm.widthPixels - 1, mouseX + dx * POINTER_SENSITIVITY * dm.widthPixels / Math.max(1f, v.getWidth())));
         mouseY = Math.max(0, Math.min(dm.heightPixels - 1, mouseY + dy * POINTER_SENSITIVITY * dm.heightPixels / Math.max(1f, v.getHeight())));
         injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
@@ -403,8 +414,6 @@ public class FloatingKeyboardService extends Service {
       }
       if (action == MotionEvent.ACTION_UP) {
         if (!trackpadMoved) {
-          // A standard mouse click is DOWN followed by UP. Sending BUTTON_PRESS/
-          // BUTTON_RELEASE as well can cause some Android builds to reject the sequence.
           injectMouseEvent(MotionEvent.ACTION_DOWN, 0, trackpadButton);
           injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
         }
@@ -416,9 +425,12 @@ public class FloatingKeyboardService extends Service {
         lastFingerY = e.getY(0);
         return true;
       }
-      if (action == MotionEvent.ACTION_CANCEL) { trackpadButton = MotionEvent.BUTTON_PRIMARY; return true; }
+      if (action == MotionEvent.ACTION_CANCEL) {
+        trackpadButton = MotionEvent.BUTTON_PRIMARY;
+        return true;
+      }
       return true;
-    });;
+    });
   }
 
   private void injectMouseScroll(float amount) {
