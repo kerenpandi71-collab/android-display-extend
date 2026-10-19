@@ -245,16 +245,7 @@
 
 
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/open_mirror_overview_btn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
-            android:layout_marginTop="8dp"
-            android:text="@string/create_display_in_mirror"
-            style="@style/Widget.Material3.Button.TonalButton" />
-
-        <com.google.android.material.button.MaterialButton
+<com.google.android.material.button.MaterialButton
             android:id="@+id/screen_off_button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
