@@ -62,6 +62,8 @@ public class FloatingKeyboardService extends Service {
   private static final float POINTER_SENSITIVITY = 2.2f;
   private boolean shiftEnabled = false;
   private boolean capsEnabled = false;
+  private boolean ctrlEnabled = false;
+  private boolean altEnabled = false;
 
   @Override
   public void onCreate() {
@@ -499,8 +501,8 @@ public class FloatingKeyboardService extends Service {
           case "⌫": case "DEL": sendKey(KeyEvent.KEYCODE_DEL, false); break;
           case "Tab": case "TAB": sendKey(KeyEvent.KEYCODE_TAB, false); break;
           case "ESC": sendKey(KeyEvent.KEYCODE_ESCAPE, false); break;
-          case "Ctrl": sendKey(KeyEvent.KEYCODE_CTRL_LEFT, false); break;
-          case "Alt": sendKey(KeyEvent.KEYCODE_ALT_LEFT, false); break;
+          case "Ctrl": ctrlEnabled = !ctrlEnabled; Toast.makeText(this, ctrlEnabled ? "Ctrl aktif — tekan tombol berikutnya" : "Ctrl nonaktif", Toast.LENGTH_SHORT).show(); break;
+          case "Alt": altEnabled = !altEnabled; Toast.makeText(this, altEnabled ? "Alt aktif — tekan tombol berikutnya" : "Alt nonaktif", Toast.LENGTH_SHORT).show(); break;
           case "⇧": case "Shift": shiftEnabled = !shiftEnabled; Toast.makeText(this, shiftEnabled ? "Shift aktif" : "Shift nonaktif", Toast.LENGTH_SHORT).show(); break;
           case "Caps": capsEnabled = !capsEnabled; Toast.makeText(this, capsEnabled ? "Caps Lock aktif" : "Caps Lock nonaktif", Toast.LENGTH_SHORT).show(); break;
           default: sendText(label);
@@ -540,6 +542,19 @@ public class FloatingKeyboardService extends Service {
       if (shiftEnabled || capsEnabled) text = text.toUpperCase(java.util.Locale.ROOT);
       if (shiftEnabled) shiftEnabled = false;
     }
+    if ((ctrlEnabled || altEnabled) && text != null && text.length() == 1) {
+      char ch = Character.toUpperCase(text.charAt(0));
+      int keyCode = ch >= 'A' && ch <= 'Z'
+          ? KeyEvent.KEYCODE_A + (ch - 'A')
+          : (ch >= '0' && ch <= '9' ? KeyEvent.KEYCODE_0 + (ch - '0') : KeyEvent.KEYCODE_UNKNOWN);
+      if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
+        sendModifiedKey(keyCode);
+        ctrlEnabled = false;
+        altEnabled = false;
+        shiftEnabled = false;
+        return;
+      }
+    }
     if (rootMode) {
       String safeText = text.replace("%", "\\%").replace(" ", "%s").replace("'", "");
       rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " text '" + safeText + "'"));
@@ -552,6 +567,25 @@ public class FloatingKeyboardService extends Service {
     } catch (Throwable e) {
       Toast.makeText(this, "Input gagal: " + e.getMessage(), Toast.LENGTH_SHORT).show();
     }
+  }
+
+  private void sendModifiedKey(int keyCode) {
+    if (rootMode) {
+      java.util.ArrayList<String> combo = new java.util.ArrayList<>();
+      if (ctrlEnabled) combo.add("KEYCODE_CTRL_LEFT");
+      if (altEnabled) combo.add("KEYCODE_ALT_LEFT");
+      combo.add(KeyEvent.keyCodeToString(keyCode));
+      String command = "input keycombination " + android.text.TextUtils.join(" ", combo);
+      rootInputExecutor.execute(() -> RootAccess.run(command));
+      return;
+    }
+    long now = android.os.SystemClock.uptimeMillis();
+    int meta = 0;
+    if (ctrlEnabled) meta |= KeyEvent.META_CTRL_ON | KeyEvent.META_CTRL_LEFT_ON;
+    if (altEnabled) meta |= KeyEvent.META_ALT_ON | KeyEvent.META_ALT_LEFT_ON;
+    if (shiftEnabled) meta |= KeyEvent.META_SHIFT_ON | KeyEvent.META_SHIFT_LEFT_ON;
+    inject(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, meta));
+    inject(new KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0, meta));
   }
 
   private void sendKey(int keyCode, boolean shift) {
