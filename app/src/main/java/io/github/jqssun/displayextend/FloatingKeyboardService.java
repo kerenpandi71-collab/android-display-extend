@@ -361,7 +361,7 @@ public class FloatingKeyboardService extends Service {
     panel.addView(label);
 
     TextView pad = new TextView(this);
-    pad.setText("⠿\\n\\nTRACKPAD");
+    pad.setText("⠿\n\nTRACKPAD");
     pad.setTextColor(Color.rgb(180, 222, 247));
     pad.setTextSize(12);
     pad.setGravity(Gravity.CENTER);
@@ -382,8 +382,7 @@ public class FloatingKeyboardService extends Service {
         trackpadMoved = false;
         twoFingerGesture = false;
         if (!ensureMousePosition()) return true;
-        ensureTargetCursorOverlay();
-        updateTargetCursorOverlay();
+        updateIntegratedCursor();
         State.log("integrated trackpad ready: targetDisplayId=" + targetDisplayId
             + ", inputManager=" + (getActiveInputManager() != null) + ", rootMode=" + rootMode);
         return true;
@@ -437,7 +436,7 @@ public class FloatingKeyboardService extends Service {
 
         // Match the working built-in trackpad: move its software cursor on the
         // target display instead of relying on injected mouse ACTION_MOVE events.
-        updateTargetCursorOverlay();
+        updateIntegratedCursor();
         return true;
       }
       if (action == MotionEvent.ACTION_UP) {
@@ -506,8 +505,14 @@ public class FloatingKeyboardService extends Service {
     android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
     d.getRealMetrics(metrics);
     if (mouseX < 0 || mouseY < 0) {
-      mouseX = metrics.widthPixels / 2f;
-      mouseY = metrics.heightPixels / 2f;
+      float[] builtInCursor = TouchpadActivity.getFloatingTrackpadCursor(targetDisplayId);
+      if (builtInCursor != null && builtInCursor.length >= 2) {
+        mouseX = builtInCursor[0];
+        mouseY = builtInCursor[1];
+      } else {
+        mouseX = metrics.widthPixels / 2f;
+        mouseY = metrics.heightPixels / 2f;
+      }
     }
     return true;
   }
@@ -553,6 +558,16 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
+  private void updateIntegratedCursor() {
+    if (TouchpadActivity.moveFloatingTrackpadCursor(targetDisplayId, mouseX, mouseY)) {
+      // When the main Extend trackpad is alive, move its original cursor instead
+      // of creating a second cursor overlay.
+      removeTargetCursorOverlay();
+    } else {
+      updateTargetCursorOverlay();
+    }
+  }
+
   private void updateTargetCursorOverlay() {
     ensureTargetCursorOverlay();
     if (targetCursorView == null || targetCursorWindowManager == null || targetCursorParams == null) {
@@ -569,7 +584,11 @@ public class FloatingKeyboardService extends Service {
 
   private void injectTrackpadTap() {
     if (!ensureMousePosition()) return;
-    updateTargetCursorOverlay();
+    updateIntegratedCursor();
+    if (TouchpadActivity.clickFloatingTrackpad(targetDisplayId, trackpadButton)) {
+      State.log("integrated trackpad delegated click to built-in controller: display=" + targetDisplayId);
+      return;
+    }
 
     if (trackpadButton == MotionEvent.BUTTON_SECONDARY) {
       if (rootMode) {
