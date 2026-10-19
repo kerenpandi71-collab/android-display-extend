@@ -237,7 +237,7 @@ public class State {
 
     if (lastSingleAppDisplay != resolvedDisplayId) {
       State.log(
-          "reconciled cast display from " + lastSingleAppDisplay + " to " + resolvedDisplayId);
+          "reconciled selected app display from " + lastSingleAppDisplay + " to " + resolvedDisplayId);
       lastSingleAppDisplay = resolvedDisplayId;
     }
   }
