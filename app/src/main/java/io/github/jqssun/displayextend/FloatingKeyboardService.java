@@ -1,7 +1,6 @@
 package io.github.jqssun.displayextend;
 
 import android.app.Service;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -45,6 +44,8 @@ public class FloatingKeyboardService extends Service {
   private int keyHeightDp = 42;
   private int widthPercent = 96;
   private int verticalOffsetDp = 12;
+  private int keyboardLayout = 0;
+  private boolean settingsVisible = false;
   private float dragStartX, dragStartY;
   private int dragOriginX, dragOriginY;
   private android.content.SharedPreferences keyboardPrefs;
@@ -61,6 +62,7 @@ public class FloatingKeyboardService extends Service {
     int screenHeightDp = Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density);
     int defaultY = Math.max(12, screenHeightDp - (keyHeightDp * 4) - 60 - 12);
     verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", defaultY);
+    keyboardLayout = keyboardPrefs.getInt("layout", 0);
   }
 
   @Override
@@ -71,7 +73,7 @@ public class FloatingKeyboardService extends Service {
     }
     if (intent != null) targetDisplayId = intent.getIntExtra(EXTRA_DISPLAY_ID, 0);
     if (!Settings.canDrawOverlays(this)) {
-      Toast.makeText(this, "Allow display overlay permission first.", Toast.LENGTH_LONG).show();
+      Toast.makeText(this, "Aktifkan izin tampil di atas aplikasi lain terlebih dahulu.", Toast.LENGTH_LONG).show();
       stopSelf();
       return START_NOT_STICKY;
     }
@@ -80,7 +82,7 @@ public class FloatingKeyboardService extends Service {
       if (keyboardView == null) showKeyboard();
     } else {
       // Request root only when the user explicitly opens the floating keyboard.
-      Toast.makeText(this, "Approve the superuser request to route keyboard input.", Toast.LENGTH_LONG).show();
+      Toast.makeText(this, "Setujui permintaan root untuk mengirim input keyboard.", Toast.LENGTH_LONG).show();
       new Thread(
               () -> {
                 RootAccess.Result result = RootAccess.check();
@@ -90,7 +92,7 @@ public class FloatingKeyboardService extends Service {
                 } else {
                   mainHandler.post(
                       () -> {
-                        Toast.makeText(this, "Keyboard needs Shizuku permission or approved root access.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Keyboard memerlukan izin Shizuku atau akses root yang disetujui.", Toast.LENGTH_LONG).show();
                         stopSelf();
                       });
                 }
@@ -133,24 +135,19 @@ public class FloatingKeyboardService extends Service {
       return true;
     });
     Button customize = new Button(this);
-    customize.setText("⚙");
-    customize.setContentDescription("Atur ukuran keyboard");
-    customize.setOnClickListener(v -> showKeyboardSettings());
-    titleRow.addView(customize, new LinearLayout.LayoutParams(dp(48), dp(36)));
+    customize.setText(settingsVisible ? "Tutup" : "Atur");
+    customize.setAllCaps(false);
+    customize.setTextSize(11);
+    customize.setContentDescription("Atur tata letak dan ukuran keyboard");
+    customize.setOnClickListener(v -> { settingsVisible = !settingsVisible; rebuildKeyboard(); });
+    titleRow.addView(customize, new LinearLayout.LayoutParams(dp(56), dp(36)));
     Button close = new Button(this);
     close.setText("×");
     close.setOnClickListener(v -> stopSelf());
     titleRow.addView(close, new LinearLayout.LayoutParams(dp(48), dp(36)));
     panel.addView(titleRow);
 
-    addRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
-    addRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
-    addRow(panel, new String[] {"⇧","z","x","c","v","b","n","m","⌫"});
-    LinearLayout bottom = new LinearLayout(this);
-    addKey(bottom, "123", () -> sendKey(KeyEvent.KEYCODE_NUM, false), 0.8f);
-    addKey(bottom, "Space", () -> sendText(" "), 2.5f);
-    addKey(bottom, "Enter", () -> sendKey(KeyEvent.KEYCODE_ENTER, false), 1.1f);
-    panel.addView(bottom);
+    if (settingsVisible) addSettingsPanel(panel); else addKeyboardLayout(panel);
 
     int type = Build.VERSION.SDK_INT >= 26
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -170,64 +167,167 @@ public class FloatingKeyboardService extends Service {
     try {
       windowManager.addView(keyboardView, params);
     } catch (Exception e) {
-      Toast.makeText(this, "Could not show floating keyboard: " + e.getMessage(), Toast.LENGTH_LONG).show();
+      Toast.makeText(this, "Keyboard overlay tidak dapat ditampilkan: " + e.getMessage(), Toast.LENGTH_LONG).show();
       stopSelf();
     }
   }
 
-  private void showKeyboardSettings() {
-    LinearLayout content = new LinearLayout(this);
-    content.setOrientation(LinearLayout.VERTICAL);
-    content.setPadding(dp(20), dp(8), dp(20), dp(4));
-    TextView hint = new TextView(this);
-    hint.setText("Atur lebar, tinggi tombol, dan posisi keyboard dari tepi atas layar. Geser judul untuk memindahkan keyboard.");
-    content.addView(hint);
-    SeekBar width = new SeekBar(this); width.setMax(40); width.setProgress(widthPercent - 60);
-    TextView widthLabel = new TextView(this); widthLabel.setText("Lebar: " + widthPercent + "%");
-    content.addView(widthLabel); content.addView(width);
-    SeekBar height = new SeekBar(this); height.setMax(48); height.setProgress(keyHeightDp - 28);
-    TextView heightLabel = new TextView(this); heightLabel.setText("Tinggi tombol: " + keyHeightDp + " dp");
-    content.addView(heightLabel); content.addView(height);
-    SeekBar offset = new SeekBar(this); offset.setMax(600); offset.setProgress(verticalOffsetDp);
-    TextView offsetLabel = new TextView(this); offsetLabel.setText("Posisi vertikal: " + verticalOffsetDp + " dp");
-    content.addView(offsetLabel); content.addView(offset);
-    width.setOnSeekBarChangeListener(new SimpleSeekListener(value -> {
-      widthPercent = value + 60; widthLabel.setText("Lebar: " + widthPercent + "%");
-    }));
-    height.setOnSeekBarChangeListener(new SimpleSeekListener(value -> {
-      keyHeightDp = value + 28; heightLabel.setText("Tinggi tombol: " + keyHeightDp + " dp");
-    }));
-    offset.setOnSeekBarChangeListener(new SimpleSeekListener(value -> {
-      verticalOffsetDp = value; offsetLabel.setText("Posisi vertikal: " + verticalOffsetDp + " dp");
-    }));
-    new AlertDialog.Builder(this).setTitle("Ukuran keyboard")
-        .setView(content)
-        .setNegativeButton("Batal", (d, w) -> {
-          widthPercent = keyboardPrefs.getInt("width_percent", 96);
-          keyHeightDp = keyboardPrefs.getInt("key_height_dp", 42);
-          verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", 12);
-        })
-        .setPositiveButton("Simpan", (d, w) -> {
-          keyboardPrefs.edit().putInt("width_percent", widthPercent)
-              .putInt("key_height_dp", keyHeightDp)
-              .putInt("vertical_offset_dp", verticalOffsetDp).apply();
-          if (params != null && keyboardView != null) {
-            try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
-            keyboardView = null;
-            showKeyboard();
-          }
-        }).show();
+  private void rebuildKeyboard() {
+    if (keyboardView != null) {
+      try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
+      keyboardView = null;
+    }
+    showKeyboard();
   }
 
-  private interface SeekValueListener { void onChanged(int value); }
-  private static class SimpleSeekListener implements SeekBar.OnSeekBarChangeListener {
-    private final SeekValueListener listener;
-    SimpleSeekListener(SeekValueListener listener) { this.listener = listener; }
-    @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-      listener.onChanged(progress);
+  private void addSettingsPanel(LinearLayout panel) {
+    TextView hint = new TextView(this);
+    hint.setText("Pilih layout. Geser judul untuk memindahkan keyboard.");
+    hint.setTextColor(Color.WHITE);
+    hint.setPadding(dp(4), dp(4), dp(4), dp(8));
+    panel.addView(hint);
+    LinearLayout layouts = new LinearLayout(this);
+    String[] names = {"PC", "Standar", "Hacker", "Gamepad"};
+    for (int i = 0; i < names.length; i++) {
+      final int selected = i;
+      Button choice = new Button(this);
+      choice.setText((keyboardLayout == i ? "✓ " : "") + names[i]);
+      choice.setAllCaps(false);
+      choice.setTextSize(10);
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(44), 1f);
+      lp.setMargins(dp(2), dp(2), dp(2), dp(2));
+      layouts.addView(choice, lp);
+      choice.setOnClickListener(v -> {
+        keyboardLayout = selected;
+        keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+        settingsVisible = false;
+        rebuildKeyboard();
+      });
     }
-    @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-    @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+    panel.addView(layouts);
+    addSettingSlider(panel, "Lebar", widthPercent, 60, 100, value -> {
+      widthPercent = value;
+      keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+      updateOverlayWidth();
+    }, "%");
+    addSettingSlider(panel, "Tinggi tombol", keyHeightDp, 28, 76, value -> {
+      keyHeightDp = value;
+      keyboardPrefs.edit().putInt("key_height_dp", keyHeightDp).apply();
+    }, " dp");
+    addSettingSlider(panel, "Posisi dari atas", verticalOffsetDp, 0, 600, value -> {
+      verticalOffsetDp = value;
+      keyboardPrefs.edit().putInt("vertical_offset_dp", verticalOffsetDp).apply();
+      if (params != null) {
+        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        params.y = dp(verticalOffsetDp);
+        try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+      }
+    }, " dp");
+    Button apply = new Button(this);
+    apply.setText("Terapkan ukuran");
+    apply.setAllCaps(false);
+    apply.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); });
+    panel.addView(apply, new LinearLayout.LayoutParams(-1, dp(42)));
+  }
+
+  private interface SettingValueListener { void onValue(int value); }
+
+  private void addSettingSlider(LinearLayout panel, String title, int current, int min,
+      int max, SettingValueListener listener, String unit) {
+    TextView label = new TextView(this);
+    label.setText(title + ": " + current + unit);
+    label.setTextColor(Color.WHITE);
+    panel.addView(label);
+    SeekBar seek = new SeekBar(this);
+    seek.setMax(max - min);
+    seek.setProgress(Math.max(0, Math.min(max - min, current - min)));
+    panel.addView(seek);
+    seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+        int value = progress + min;
+        label.setText(title + ": " + value + unit);
+        if (fromUser) listener.onValue(value);
+      }
+      @Override public void onStartTrackingTouch(SeekBar bar) {}
+      @Override public void onStopTrackingTouch(SeekBar bar) {}
+    });
+  }
+
+  private void updateOverlayWidth() {
+    if (params == null || keyboardView == null) return;
+    android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+    windowManager.getDefaultDisplay().getMetrics(metrics);
+    params.width = Math.max(dp(260), Math.round(metrics.widthPixels * widthPercent / 100f));
+    try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+  }
+
+  private void addKeyboardLayout(LinearLayout panel) {
+    if (keyboardLayout == 0) {
+      addRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0"});
+      addRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+      addRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+      addRow(panel, new String[] {"⇧","z","x","c","v","b","n","m","⌫"});
+      addBottomRow(panel, "Ctrl", "Alt", "Space", "Tab", "Enter");
+    } else if (keyboardLayout == 1) {
+      addRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+      addRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+      addRow(panel, new String[] {"⇧","z","x","c","v","b","n","m","⌫"});
+      addBottomRow(panel, "?123", ",", "Space", ".", "Enter");
+    } else if (keyboardLayout == 2) {
+      addRow(panel, new String[] {"!","@","#","$","%","^","&","*","(",")"});
+      addRow(panel, new String[] {"~","|","\\","{","}","[","]","<",">"});
+      addRow(panel, new String[] {"_","+","-","=","/",":",";","$"});
+      addBottomRow(panel, "ESC", "TAB", "Space", "DEL", "Enter");
+    } else {
+      addRow(panel, new String[] {"↑", "Y", "X", "B", "A", "↓"});
+      addRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
+      addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
+    }
+  }
+
+  private void addBottomRow(LinearLayout panel, String a, String b, String c, String d, String e) {
+    LinearLayout row = new LinearLayout(this);
+    addLayoutKey(row, a, 1f); addLayoutKey(row, b, 1f); addLayoutKey(row, c, 2f);
+    addLayoutKey(row, d, 1f); addLayoutKey(row, e, 1f);
+    panel.addView(row);
+  }
+
+  private void addLayoutKey(LinearLayout row, String label, float weight) {
+    addKey(row, label, () -> {
+      if (keyboardLayout == 3) {
+        int code;
+        switch (label) {
+          case "↑": code = KeyEvent.KEYCODE_DPAD_UP; break;
+          case "↓": code = KeyEvent.KEYCODE_DPAD_DOWN; break;
+          case "←": code = KeyEvent.KEYCODE_DPAD_LEFT; break;
+          case "→": code = KeyEvent.KEYCODE_DPAD_RIGHT; break;
+          case "A": case "OK": code = KeyEvent.KEYCODE_BUTTON_A; break;
+          case "B": case "Back": code = KeyEvent.KEYCODE_BUTTON_B; break;
+          case "X": code = KeyEvent.KEYCODE_BUTTON_X; break;
+          case "Y": code = KeyEvent.KEYCODE_BUTTON_Y; break;
+          case "L1": code = KeyEvent.KEYCODE_BUTTON_L1; break;
+          case "R1": code = KeyEvent.KEYCODE_BUTTON_R1; break;
+          case "L2": code = KeyEvent.KEYCODE_BUTTON_L2; break;
+          case "R2": code = KeyEvent.KEYCODE_BUTTON_R2; break;
+          case "Start": code = KeyEvent.KEYCODE_BUTTON_START; break;
+          case "Select": code = KeyEvent.KEYCODE_BUTTON_SELECT; break;
+          default: code = KeyEvent.KEYCODE_ENTER; break;
+        }
+        sendKey(code, false);
+      } else {
+        switch (label) {
+          case "Space": sendText(" "); break;
+          case "Enter": sendKey(KeyEvent.KEYCODE_ENTER, false); break;
+          case "⌫": case "DEL": sendKey(KeyEvent.KEYCODE_DEL, false); break;
+          case "Tab": case "TAB": sendKey(KeyEvent.KEYCODE_TAB, false); break;
+          case "ESC": sendKey(KeyEvent.KEYCODE_ESCAPE, false); break;
+          case "Ctrl": sendKey(KeyEvent.KEYCODE_CTRL_LEFT, false); break;
+          case "Alt": sendKey(KeyEvent.KEYCODE_ALT_LEFT, false); break;
+          case "⇧": sendKey(KeyEvent.KEYCODE_SHIFT_LEFT, false); break;
+          default: sendText(label);
+        }
+      }
+    }, weight);
   }
 
   private void addRow(LinearLayout panel, String[] keys) {
@@ -265,7 +365,7 @@ public class FloatingKeyboardService extends Service {
       if (events == null) return;
       for (KeyEvent event : events) inject(event);
     } catch (Throwable e) {
-      Toast.makeText(this, "Input failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+      Toast.makeText(this, "Input gagal: " + e.getMessage(), Toast.LENGTH_SHORT).show();
     }
   }
 
