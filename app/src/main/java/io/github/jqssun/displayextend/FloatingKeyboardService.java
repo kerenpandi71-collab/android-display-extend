@@ -339,6 +339,12 @@ public class FloatingKeyboardService extends Service {
       settingsVisible = true;
       rebuildKeyboard();
     }, 1f);
+    View settingsKey = row.getChildAt(row.getChildCount() - 1);
+    settingsKey.setOnLongClickListener(v -> {
+      copyDiagnosticLog();
+      return true;
+    });
+    settingsKey.setContentDescription("Pengaturan. Tekan lama untuk menyalin log diagnostik");
     panel.addView(row);
   }
 
@@ -351,7 +357,7 @@ public class FloatingKeyboardService extends Service {
     panel.addView(label);
 
     TextView pad = new TextView(this);
-    pad.setText("⠿\\n\\nTRACKPAD");
+    pad.setText("⠿\n\nTRACKPAD");
     pad.setTextColor(Color.rgb(180, 222, 247));
     pad.setTextSize(12);
     pad.setGravity(Gravity.CENTER);
@@ -365,14 +371,18 @@ public class FloatingKeyboardService extends Service {
     panel.addView(pad, lp);
 
     pad.setOnTouchListener((v, e) -> {
-      if (inputManager == null) {
-        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-          Toast.makeText(this, "Trackpad membutuhkan Shizuku aktif dan izin diberikan. Root saja belum mengaktifkan jalur mouse.", Toast.LENGTH_LONG).show();
-          State.log("trackpad unavailable: Shizuku InputManager is null");
+      int action = e.getActionMasked();
+      if (inputManager == null && !rootMode) {
+        if (action == MotionEvent.ACTION_DOWN) {
+          Toast.makeText(this, "Trackpad butuh izin Shizuku atau root yang disetujui.", Toast.LENGTH_LONG).show();
+          State.log("trackpad unavailable: no Shizuku InputManager and root mode is off");
         }
         return true;
       }
-      int action = e.getActionMasked();
+      if (inputManager == null && rootMode) {
+        handleRootTrackpad(v, e);
+        return true;
+      }
       if (action == MotionEvent.ACTION_DOWN) {
         lastFingerX = e.getX();
         lastFingerY = e.getY();
@@ -443,6 +453,117 @@ public class FloatingKeyboardService extends Service {
       }
       return true;
     });
+  }
+
+  private void handleRootTrackpad(View view, MotionEvent event) {
+    int action = event.getActionMasked();
+    if (action == MotionEvent.ACTION_DOWN) {
+      lastFingerX = event.getX();
+      lastFingerY = event.getY();
+      trackpadMoved = false;
+      twoFingerGesture = false;
+      ensureRootPointerPosition();
+      return;
+    }
+    if (action == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
+      twoFingerGesture = true;
+      lastFingerX = event.getX(0);
+      lastFingerY = event.getY(0);
+      return;
+    }
+    if (action == MotionEvent.ACTION_MOVE) {
+      if (event.getPointerCount() >= 2) {
+        twoFingerGesture = true;
+        float dy = event.getY(0) - lastFingerY;
+        lastFingerX = event.getX(0);
+        lastFingerY = event.getY(0);
+        if (Math.abs(dy) >= dp(2)) {
+          float scroll = -dy / Math.max(1f, dp(18));
+          runRootMouseCommand("mouse scroll " + Math.round(mouseX) + " " + Math.round(mouseY) + " 0 " + Math.round(scroll));
+        }
+        trackpadMoved = true;
+        return;
+      }
+      if (twoFingerGesture) return;
+      float dx = event.getX() - lastFingerX;
+      float dy = event.getY() - lastFingerY;
+      lastFingerX = event.getX();
+      lastFingerY = event.getY();
+      if (Math.abs(dx) + Math.abs(dy) < dp(1)) return;
+      trackpadMoved = true;
+      android.view.Display display = ((android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+      if (display == null) {
+        State.log("root trackpad: target display " + targetDisplayId + " not found");
+        return;
+      }
+      android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+      display.getRealMetrics(metrics);
+      mouseX = Math.max(0, Math.min(metrics.widthPixels - 1, mouseX + dx * POINTER_SENSITIVITY * metrics.widthPixels / Math.max(1f, view.getWidth())));
+      mouseY = Math.max(0, Math.min(metrics.heightPixels - 1, mouseY + dy * POINTER_SENSITIVITY * metrics.heightPixels / Math.max(1f, view.getHeight())));
+      runRootMouseCommand("mouse move " + Math.round(mouseX) + " " + Math.round(mouseY));
+      return;
+    }
+    if (action == MotionEvent.ACTION_UP) {
+      if (!trackpadMoved && !twoFingerGesture) {
+        String clickType = trackpadButton == MotionEvent.BUTTON_SECONDARY ? "right" : "left";
+        runRootMouseCommand("mouse tap " + Math.round(mouseX) + " " + Math.round(mouseY));
+        if ("right".equals(clickType)) {
+          State.log("root trackpad: shell mouse tap cannot guarantee right-click on this Android build");
+        }
+      }
+      trackpadButton = MotionEvent.BUTTON_PRIMARY;
+      twoFingerGesture = false;
+    } else if (action == MotionEvent.ACTION_CANCEL) {
+      trackpadButton = MotionEvent.BUTTON_PRIMARY;
+      twoFingerGesture = false;
+    }
+  }
+
+  private void ensureRootPointerPosition() {
+    android.hardware.display.DisplayManager manager =
+        (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+    android.view.Display display = manager != null ? manager.getDisplay(targetDisplayId) : null;
+    if (display == null) {
+      State.log("root trackpad cannot initialize: display " + targetDisplayId + " missing");
+      return;
+    }
+    android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+    display.getRealMetrics(metrics);
+    if (mouseX < 0 || mouseY < 0) {
+      mouseX = metrics.widthPixels / 2f;
+      mouseY = metrics.heightPixels / 2f;
+    }
+  }
+
+  private void runRootMouseCommand(String mouseArgs) {
+    if (!rootMode) return;
+    String command = "input -d " + targetDisplayId + " " + mouseArgs;
+    rootInputExecutor.execute(() -> {
+      RootAccess.Result result = RootAccess.run(command);
+      if (!result.success) {
+        State.log("root mouse command failed: " + command + " ; " + result.output);
+      }
+    });
+  }
+
+  private void copyDiagnosticLog() {
+    StringBuilder out = new StringBuilder();
+    out.append("=== Extended Desk diagnostic ===\n")
+        .append("targetDisplayId=").append(targetDisplayId).append("\n")
+        .append("rootMode=").append(rootMode).append("\n")
+        .append("shizukuInputManager=").append(inputManager != null).append("\n");
+    synchronized (State.logs) {
+      int start = Math.max(0, State.logs.size() - 160);
+      for (int i = start; i < State.logs.size(); i++) out.append(State.logs.get(i)).append("\n");
+    }
+    android.content.ClipboardManager clipboard =
+        (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+    if (clipboard != null) {
+      clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Extended Desk log", out.toString()));
+      Toast.makeText(this, "Log disalin. Tempelkan langsung ke chat.", Toast.LENGTH_LONG).show();
+    } else {
+      State.log("diagnostic clipboard unavailable");
+    }
   }
 
   private boolean ensureMousePosition() {
