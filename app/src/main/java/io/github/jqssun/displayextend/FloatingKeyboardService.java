@@ -60,6 +60,8 @@ public class FloatingKeyboardService extends Service {
   private boolean trackpadMoved;
   private int trackpadButton = MotionEvent.BUTTON_PRIMARY;
   private static final float POINTER_SENSITIVITY = 2.2f;
+  private boolean shiftEnabled = false;
+  private boolean capsEnabled = false;
 
   @Override
   public void onCreate() {
@@ -117,14 +119,19 @@ public class FloatingKeyboardService extends Service {
     LinearLayout panel = new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
     panel.setPadding(dp(8), dp(8), dp(8), dp(8));
-    panel.setBackgroundColor(Color.rgb(25, 28, 36));
+    android.graphics.drawable.GradientDrawable panelBg = new android.graphics.drawable.GradientDrawable();
+    panelBg.setColor(Color.rgb(18, 25, 38));
+    panelBg.setCornerRadius(dp(18));
+    panelBg.setStroke(dp(1), Color.rgb(64, 86, 112));
+    panel.setBackground(panelBg);
 
     LinearLayout titleRow = new LinearLayout(this);
     titleRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView title = new TextView(this);
-    title.setText("Keyboard · Layar " + targetDisplayId + "  ↕ geser");
-    title.setTextColor(Color.rgb(232, 236, 245));
-    title.setTextSize(13);
+    title.setText("EXTENDED DESK  ·  Display " + targetDisplayId + "  ↕");
+    title.setTextColor(Color.rgb(225, 241, 255));
+    title.setTextSize(12);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
     titleRow.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1));
     title.setOnTouchListener((v, event) -> {
       if (params == null) return false;
@@ -311,7 +318,7 @@ public class FloatingKeyboardService extends Service {
   private void addIntegratedControls(LinearLayout panel) {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
-    addKey(row, "Klik kanan", () -> { trackpadButton = MotionEvent.BUTTON_SECONDARY; Toast.makeText(this, "Ketuk trackpad untuk klik kanan", Toast.LENGTH_SHORT).show(); }, 1.3f);
+    addKey(row, "Klik kanan", () -> { trackpadButton = MotionEvent.BUTTON_SECONDARY; Toast.makeText(this, "Sekarang ketuk trackpad untuk klik kanan", Toast.LENGTH_SHORT).show(); }, 1.3f);
     addKey(row, "⌨", () -> { keyboardLayout = 1; keyboardPrefs.edit().putInt("layout", keyboardLayout).apply(); rebuildKeyboard(); }, 1f);
     addKey(row, "⚙", () -> {
       settingsVisible = true;
@@ -322,21 +329,21 @@ public class FloatingKeyboardService extends Service {
 
   private void addIntegratedTrackpad(LinearLayout panel) {
     TextView label = new TextView(this);
-    label.setText("TRACKPAD · Geser untuk memindahkan pointer · ketuk untuk klik");
-    label.setTextColor(Color.rgb(206, 213, 226));
+    label.setText("TRACKPAD  •  Geser: pointer   •   2 jari: scroll   •   ketuk: klik");
+    label.setTextColor(Color.rgb(165, 208, 236));
     label.setTextSize(10);
     label.setPadding(dp(4), dp(4), dp(4), dp(6));
     panel.addView(label);
     TextView pad = new TextView(this);
-    pad.setText("AREA TRACKPAD");
-    pad.setTextColor(Color.rgb(190, 178, 255));
-    pad.setTextSize(12);
+    pad.setText("◉\n\nTouchpad");
+    pad.setTextColor(Color.rgb(180, 222, 247));
+    pad.setTextSize(13);
     pad.setGravity(Gravity.CENTER);
     pad.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(38, 42, 54)));
     android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-    bg.setColor(Color.rgb(38, 42, 54)); bg.setCornerRadius(dp(12));
-    bg.setStroke(dp(1), Color.rgb(79, 84, 103)); pad.setBackground(bg);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(190));
+    bg.setColor(Color.rgb(35, 48, 63)); bg.setCornerRadius(dp(16));
+    bg.setStroke(dp(1), Color.rgb(75, 128, 160)); pad.setBackground(bg);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(230));
     lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
     pad.setOnTouchListener((v, e) -> {
       if (inputManager == null) {
@@ -469,7 +476,8 @@ public class FloatingKeyboardService extends Service {
           case "ESC": sendKey(KeyEvent.KEYCODE_ESCAPE, false); break;
           case "Ctrl": sendKey(KeyEvent.KEYCODE_CTRL_LEFT, false); break;
           case "Alt": sendKey(KeyEvent.KEYCODE_ALT_LEFT, false); break;
-          case "⇧": sendKey(KeyEvent.KEYCODE_SHIFT_LEFT, false); break;
+          case "⇧": case "Shift": shiftEnabled = !shiftEnabled; Toast.makeText(this, shiftEnabled ? "Shift aktif" : "Shift nonaktif", Toast.LENGTH_SHORT).show(); break;
+          case "Caps": capsEnabled = !capsEnabled; Toast.makeText(this, capsEnabled ? "Caps Lock aktif" : "Caps Lock nonaktif", Toast.LENGTH_SHORT).show(); break;
           default: sendText(label);
         }
       }
@@ -481,7 +489,8 @@ public class FloatingKeyboardService extends Service {
     for (String key : keys) {
       addKey(row, key, () -> {
         if ("⌫".equals(key)) sendKey(KeyEvent.KEYCODE_DEL, false);
-        else if ("⇧".equals(key)) Toast.makeText(this, "Use uppercase by long-pressing the key (coming soon).", Toast.LENGTH_SHORT).show();
+        else if ("⇧".equals(key) || "Shift".equals(key)) { shiftEnabled = !shiftEnabled; Toast.makeText(this, shiftEnabled ? "Shift aktif" : "Shift nonaktif", Toast.LENGTH_SHORT).show(); }
+        else if ("Caps".equals(key)) { capsEnabled = !capsEnabled; Toast.makeText(this, capsEnabled ? "Caps Lock aktif" : "Caps Lock nonaktif", Toast.LENGTH_SHORT).show(); }
         else sendText(key);
       }, 1f);
     }
@@ -502,6 +511,10 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void sendText(String text) {
+    if (text != null && text.length() == 1 && Character.isLetter(text.charAt(0))) {
+      if (shiftEnabled || capsEnabled) text = text.toUpperCase(java.util.Locale.ROOT);
+      if (shiftEnabled) shiftEnabled = false;
+    }
     if (rootMode) {
       String safeText = text.replace("%", "\\%").replace(" ", "%s").replace("'", "");
       rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " text '" + safeText + "'"));
@@ -544,7 +557,7 @@ public class FloatingKeyboardService extends Service {
     button.setAllCaps(false);
     button.setTextColor(accent ? Color.rgb(24, 25, 36) : Color.rgb(235, 238, 246));
     button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
-        accent ? Color.rgb(190, 178, 255) : Color.rgb(53, 58, 72)));
+        accent ? Color.rgb(111, 211, 244) : Color.rgb(43, 61, 78)));
     button.setStateListAnimator(null);
     button.setMinHeight(dp(38));
   }
