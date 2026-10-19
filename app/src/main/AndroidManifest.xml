@@ -59,6 +59,7 @@
         <activity
             android:name=".LauncherActivity"
             android:launchMode="singleTask"
+            android:excludeFromRecents="true"
             android:exported="false" />
 
         <activity
