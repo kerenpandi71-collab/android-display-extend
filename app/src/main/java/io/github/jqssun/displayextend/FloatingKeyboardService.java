@@ -336,7 +336,7 @@ public class FloatingKeyboardService extends Service {
     android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
     bg.setColor(Color.rgb(38, 42, 54)); bg.setCornerRadius(dp(12));
     bg.setStroke(dp(1), Color.rgb(79, 84, 103)); pad.setBackground(bg);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(104));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(190));
     lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
     pad.setOnTouchListener((v, e) -> {
       if (inputManager == null) {
@@ -376,7 +376,9 @@ public class FloatingKeyboardService extends Service {
       }
       if (action == MotionEvent.ACTION_UP) {
         if (!trackpadMoved) {
-          injectMouseEvent(MotionEvent.ACTION_DOWN, trackpadButton, trackpadButton);
+          injectMouseEvent(MotionEvent.ACTION_DOWN, 0, trackpadButton);
+          injectMouseEvent(MotionEvent.ACTION_BUTTON_PRESS, trackpadButton, trackpadButton);
+          injectMouseEvent(MotionEvent.ACTION_BUTTON_RELEASE, trackpadButton, 0);
           injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
         }
         trackpadButton = MotionEvent.BUTTON_PRIMARY;
@@ -417,7 +419,7 @@ public class FloatingKeyboardService extends Service {
     try {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
-      if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) hidden.setActionButton(actionButton);
+      if (action == MotionEvent.ACTION_BUTTON_PRESS || action == MotionEvent.ACTION_BUTTON_RELEASE) hidden.setActionButton(actionButton);
       inputManager.injectInputEvent(event, 0);
     } catch (Throwable t) { State.log("trackpad mouse injection failed: " + t.getMessage()); }
     finally { event.recycle(); }
