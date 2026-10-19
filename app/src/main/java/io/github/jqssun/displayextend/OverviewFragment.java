@@ -114,9 +114,6 @@ public class OverviewFragment extends Fragment {
     permissionsStatusDetail = view.findViewById(R.id.permissions_status_detail);
     permissionsStatusIcon = view.findViewById(R.id.permissions_status_icon);
 
-    view.findViewById(R.id.open_mirror_overview_btn)
-        .setOnClickListener(v -> MirrorIntegrationHelper.openMirrorOverview(requireContext()));
-
     view.findViewById(R.id.screen_off_button)
         .setOnClickListener(
             v -> {
@@ -208,7 +205,7 @@ public class OverviewFragment extends Fragment {
     List<Display> displayList = new ArrayList<>();
     for (Display d : displays) {
       if (d.getDisplayId() != State.managedVirtualDisplayHostDisplayId
-          && d.getDisplayId() != State.mirrorDisplayId) {
+) {
         displayList.add(d);
       }
     }
