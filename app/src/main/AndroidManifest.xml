@@ -147,9 +147,5 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <intent>
-            <action android:name="android.settings.CAST_SETTINGS" />
-        </intent>
-        <package android:name="io.github.jqssun.displaymirror" />
     </queries>
 </manifest>
