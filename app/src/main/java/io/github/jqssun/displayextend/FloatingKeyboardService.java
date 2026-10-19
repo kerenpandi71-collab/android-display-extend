@@ -401,11 +401,13 @@ public class FloatingKeyboardService extends Service {
           float dy = e.getY(0) - lastFingerY;
           if (Math.abs(dy) >= dp(2)) {
             float scroll = -dy / Math.max(1f, dp(18));
-            if (rootMode) {
-              runRootMouseCommand("mouse scroll " + Math.round(mouseX) + " "
-                  + Math.round(mouseY) + " 0 " + Math.round(scroll));
-            } else {
-              injectMouseScroll(scroll);
+            if (!TouchpadActivity.scrollFloatingTrackpad(targetDisplayId, scroll)) {
+              if (rootMode) {
+                runRootMouseCommand("mouse scroll " + Math.round(mouseX) + " "
+                    + Math.round(mouseY) + " 0 " + Math.round(scroll));
+              } else {
+                injectMouseScroll(scroll);
+              }
             }
           }
           lastFingerX = e.getX(0);
