@@ -629,7 +629,7 @@ public class FloatingKeyboardService extends Service {
     MotionEvent.PointerCoords[] coordinates = {new MotionEvent.PointerCoords()};
     coordinates[0].x = mouseX;
     coordinates[0].y = mouseY;
-    coordinates[0].pressure = 1f;
+    coordinates[0].pressure = action == MotionEvent.ACTION_DOWN ? 1f : 0f;
     coordinates[0].size = 1f;
     MotionEvent event = MotionEvent.obtain(
         downTime,
