@@ -1,9 +1,6 @@
 name: Feature branch compile check
 
 on:
-  push:
-    branches:
-      - "feature/**"
   pull_request:
     branches:
       - main
@@ -12,6 +9,11 @@ on:
 
 permissions:
   contents: read
+
+# Avoid duplicate queued builds for the same branch/PR.
+concurrency:
+  group: feature-build-${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   debug-build:
