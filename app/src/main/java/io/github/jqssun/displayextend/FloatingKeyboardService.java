@@ -279,10 +279,16 @@ public class FloatingKeyboardService extends Service {
       addRow(panel, new String[] {"_","+","-","=","/",":",";","$"});
       addBottomRow(panel, "ESC", "TAB", "Space", "DEL", "Enter");
     } else {
-      addRow(panel, new String[] {"↑", "Y", "X", "B", "A", "↓"});
-      addRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
+      addGamepadRow(panel, new String[] {"↑", "Y", "X", "B", "A", "↓"});
+      addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
     }
+  }
+
+  private void addGamepadRow(LinearLayout panel, String[] keys) {
+    LinearLayout row = new LinearLayout(this);
+    for (String key : keys) addLayoutKey(row, key, 1f);
+    panel.addView(row);
   }
 
   private void addBottomRow(LinearLayout panel, String a, String b, String c, String d, String e) {
