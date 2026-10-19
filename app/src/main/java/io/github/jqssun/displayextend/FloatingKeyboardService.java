@@ -189,7 +189,7 @@ public class FloatingKeyboardService extends Service {
     hint.setPadding(dp(4), dp(4), dp(4), dp(8));
     panel.addView(hint);
     LinearLayout layouts = new LinearLayout(this);
-    String[] names = {"PC", "Standar", "Hacker", "Gamepad"};
+    String[] names = {"PC", "Standar", "Hacker", "Gamepad", "Gabung"};
     for (int i = 0; i < names.length; i++) {
       final int selected = i;
       Button choice = new Button(this);
@@ -282,11 +282,61 @@ public class FloatingKeyboardService extends Service {
       addRow(panel, new String[] {"~","|","\\","{","}","[","]","<",">"});
       addRow(panel, new String[] {"_","+","-","=","/",":",";","$"});
       addBottomRow(panel, "ESC", "TAB", "Space", "DEL", "Enter");
-    } else {
+    } else if (keyboardLayout == 3) {
       addGamepadRow(panel, new String[] {"↑", "Y", "X", "B", "A", "↓"});
       addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
+    } else {
+      addIntegratedTrackpad(panel);
+      addRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+      addRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+      addBottomRow(panel, "⌫", "Ctrl", "Space", "Tab", "Enter");
     }
+  }
+
+  private void addIntegratedTrackpad(LinearLayout panel) {
+    TextView label = new TextView(this);
+    label.setText("TRACKPAD · Geser untuk memindahkan pointer · ketuk untuk klik");
+    label.setTextColor(Color.rgb(206, 213, 226));
+    label.setTextSize(10);
+    label.setPadding(dp(4), dp(4), dp(4), dp(6));
+    panel.addView(label);
+    TextView pad = new TextView(this);
+    pad.setText("AREA TRACKPAD");
+    pad.setTextColor(Color.rgb(190, 178, 255));
+    pad.setTextSize(12);
+    pad.setGravity(Gravity.CENTER);
+    pad.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(38, 42, 54)));
+    android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+    bg.setColor(Color.rgb(38, 42, 54)); bg.setCornerRadius(dp(12));
+    bg.setStroke(dp(1), Color.rgb(79, 84, 103)); pad.setBackground(bg);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(104));
+    lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
+    pad.setOnTouchListener(new android.view.View.OnTouchListener() {
+      float sx, sy; long downAt; boolean moved;
+      @Override public boolean onTouch(android.view.View v, MotionEvent e) {
+        switch (e.getActionMasked()) {
+          case MotionEvent.ACTION_DOWN: sx=e.getRawX(); sy=e.getRawY(); downAt=System.currentTimeMillis(); moved=false; return true;
+          case MotionEvent.ACTION_MOVE:
+            float dx=e.getRawX()-sx, dy=e.getRawY()-sy;
+            if (Math.abs(dx)>dp(4)||Math.abs(dy)>dp(4)) moved=true;
+            if (moved && rootMode) {
+              int mx=Math.round(dx/Math.max(1f,getResources().getDisplayMetrics().density*2));
+              int my=Math.round(dy/Math.max(1f,getResources().getDisplayMetrics().density*2));
+              if(mx!=0||my!=0) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " motionevent MOVE " + mx + " " + my));
+              sx=e.getRawX(); sy=e.getRawY();
+            }
+            return true;
+          case MotionEvent.ACTION_UP:
+            if(!moved) {
+              if(rootMode) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " tap 500 500"));
+              else Toast.makeText(FloatingKeyboardService.this, "Klik trackpad memerlukan mode root untuk diarahkan ke display virtual.", Toast.LENGTH_SHORT).show();
+            }
+            return true;
+        }
+        return true;
+      }
+    });
   }
 
   private void addGamepadRow(LinearLayout panel, String[] keys) {
