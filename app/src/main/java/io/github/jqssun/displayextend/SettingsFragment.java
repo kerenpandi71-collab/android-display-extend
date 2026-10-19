@@ -450,7 +450,6 @@ public class SettingsFragment extends Fragment {
     }
     ManagedVirtualDisplayActivity.stopVirtualDisplay();
     State.managedVirtualDisplayHostDisplayId = -1;
-    State.mirrorDisplayId = -1;
     State.lastSingleAppDisplay = 0;
 
     if (State.isInPureBlackActivity != null) {
