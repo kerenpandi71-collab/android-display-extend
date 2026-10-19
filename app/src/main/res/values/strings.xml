@@ -283,4 +283,5 @@ Gestur yang tersedia:
     <string name="root_access_ready">Root siap</string>
     <string name="root_access_check_again">Periksa lagi</string>
 
+    <string name="root_access_not_checked">Belum diperiksa. Ketuk tombol untuk meminta izin root.</string>
 </resources>
