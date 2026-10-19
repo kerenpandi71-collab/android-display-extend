@@ -389,7 +389,9 @@ public class FloatingKeyboardService extends Service {
         trackpadMoved = false;
         twoFingerGesture = false;
         if (!ensureMousePosition()) return true;
-        injectMouseHover(MotionEvent.ACTION_HOVER_ENTER);
+        // Do not inject ACTION_HOVER_ENTER: Android 15 rejects hover-enter
+        // on this virtual display. The built-in trackpad uses ACTION_MOVE.
+        injectMouseEvent(MotionEvent.ACTION_MOVE, 0, 0);
         mouseHoverStarted = true;
         return true;
       }
@@ -428,7 +430,7 @@ public class FloatingKeyboardService extends Service {
         float nextY = mouseY + dy * POINTER_SENSITIVITY * dm.heightPixels / Math.max(1f, v.getHeight());
         mouseX = Math.max(0, Math.min(dm.widthPixels - 1, nextX));
         mouseY = Math.max(0, Math.min(dm.heightPixels - 1, nextY));
-        injectMouseHover(MotionEvent.ACTION_HOVER_MOVE);
+        injectMouseEvent(MotionEvent.ACTION_MOVE, 0, 0);
         return true;
       }
       if (action == MotionEvent.ACTION_UP) {
@@ -666,7 +668,12 @@ public class FloatingKeyboardService extends Service {
       if (action == MotionEvent.ACTION_BUTTON_PRESS || action == MotionEvent.ACTION_BUTTON_RELEASE) {
         hidden.setActionButton(actionButton);
       }
-      boolean accepted = inputManager.injectInputEvent(event, 0);
+      IInputManager activeManager = getActiveInputManager();
+      if (activeManager == null) {
+        State.log("trackpad event skipped: InputManager unavailable");
+        return;
+      }
+      boolean accepted = activeManager.injectInputEvent(event, 0);
       if (!accepted) State.log("trackpad event rejected: display=" + targetDisplayId + ", action=" + action);
     } catch (Throwable t) {
       State.log("trackpad event injection failed: " + t.getMessage());
