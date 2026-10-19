@@ -243,4 +243,37 @@
     <!-- ServiceUtils Toast messages -->
     <string name="shizuku_launch_failed">Failed to launch app via Shizuku</string>
 
+
+    <!-- Indonesian overlay display manager -->
+    <string name="overlay_manager_title">Kelola layar virtual overlay</string>
+    <string name="overlay_manager_help">Buat layar virtual tambahan dengan ukuran dan kerapatan piksel sendiri. Perubahan memakai akses root dan dapat memengaruhi overlay yang dibuat melalui Opsi Pengembang. Pilih Hapus untuk menghapus satu konfigurasi.</string>
+    <string name="dpi_label_short">Kerapatan layar (DPI)</string>
+    <string name="overlay_create">Buat layar virtual</string>
+    <string name="overlay_existing_title">Konfigurasi overlay saat ini</string>
+    <string name="overlay_loading">Memuat konfigurasi…</string>
+    <string name="overlay_working">Sedang menerapkan perubahan…</string>
+    <string name="overlay_done">Selesai.</string>
+    <string name="overlay_failed">Operasi gagal.</string>
+    <string name="overlay_none">Belum ada overlay virtual.</string>
+    <string name="overlay_count">Ditemukan %1$d konfigurasi. Pilih satu untuk menghapusnya.</string>
+    <string name="overlay_root_required">Perlu izin root untuk membaca atau mengubah overlay: %1$s</string>
+    <string name="overlay_invalid_values">Masukkan angka yang valid untuk lebar, tinggi, dan DPI.</string>
+    <string name="overlay_values_out_of_range">Gunakan lebar/tinggi 320–3840 dan DPI 80–640.</string>
+    <string name="overlay_already_exists">Konfigurasi dengan ukuran ini sudah ada.</string>
+    <string name="overlay_created">Overlay %1$s berhasil dibuat.</string>
+    <string name="overlay_delete_selected">Hapus konfigurasi terpilih</string>
+    <string name="overlay_select_delete">Pilih konfigurasi yang ingin dihapus.</string>
+    <string name="overlay_changed_refresh">Konfigurasi berubah. Daftar dimuat ulang; coba lagi.</string>
+    <string name="overlay_deleted">Konfigurasi %1$s berhasil dihapus.</string>
+    <string name="refresh">Muat ulang</string>
+    <string name="overlay_manager_button">Layar virtual overlay kustom</string>
+    <string name="overlay_manager_button_desc">Buat, atur resolusi dan DPI, atau hapus overlay virtual.</string>
+    <string name="root_access_title">Akses root opsional</string>
+    <string name="root_access_waiting">Menunggu persetujuan superuser…</string>
+    <string name="root_access_granted">Root aktif. Fitur tertentu dapat meminta izin saat diperlukan.</string>
+    <string name="root_access_unavailable">Root tidak tersedia atau ditolak. Fitur yang mendukung Shizuku tetap bisa digunakan.</string>
+    <string name="root_access_check">Periksa root</string>
+    <string name="root_access_ready">Root siap</string>
+    <string name="root_access_check_again">Periksa lagi</string>
+
 </resources>
