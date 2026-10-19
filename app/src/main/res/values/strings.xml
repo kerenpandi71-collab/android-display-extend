@@ -50,9 +50,6 @@
 
     <!-- Display list -->
     <string name="display_list_header">Pilih layar fisik atau virtual untuk menampilkan aplikasi.</string>
-    <string name="wireless_cast_hint">Buka pengaturan layar nirkabel Android</string>
-    <string name="create_display_in_mirror">Gunakan AirPlay, DisplayLink, atau Sunshine (Moonlight)</string>
-    <string name="mirror_app_not_installed">Pasang aplikasi Mirror untuk melanjutkan</string>
     <string name="display_unavailable_opened_overview">Layar tersebut sudah tidak tersedia. Ringkasan dibuka.</string>
     <string name="display_id_format">Layar %1$d (%2$dx%3$d)</string>
     <string name="display_name_format">%s</string>
