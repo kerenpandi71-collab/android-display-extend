@@ -92,7 +92,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Optional root access"
+                        android:text="@string/root_access_title"
                         android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                     <TextView
@@ -100,7 +100,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="Root is not checked until you request it."
+                        android:text="@string/root_access_not_checked"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?attr/colorOnSurfaceVariant" />
                 </LinearLayout>
@@ -110,7 +110,7 @@
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Check root" />
+                    android:text="@string/root_access_check" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
