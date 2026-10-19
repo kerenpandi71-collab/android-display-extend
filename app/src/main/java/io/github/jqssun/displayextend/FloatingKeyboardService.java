@@ -6,6 +6,10 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyCharacterMap;
@@ -34,6 +38,9 @@ public class FloatingKeyboardService extends Service {
   private View keyboardView;
   private WindowManager.LayoutParams params;
   private int targetDisplayId = 0;
+  private boolean rootMode = false;
+  private final Handler mainHandler = new Handler(Looper.getMainLooper());
+  private final ExecutorService rootInputExecutor = Executors.newSingleThreadExecutor();
 
   @Override
   public void onCreate() {
@@ -53,12 +60,28 @@ public class FloatingKeyboardService extends Service {
       stopSelf();
       return START_NOT_STICKY;
     }
-    if (!ShizukuUtils.hasPermission()) {
-      Toast.makeText(this, "Authorize Shizuku to route keyboard input to the display.", Toast.LENGTH_LONG).show();
-      stopSelf();
-      return START_NOT_STICKY;
+    if (ShizukuUtils.hasPermission()) {
+      rootMode = false;
+      if (keyboardView == null) showKeyboard();
+    } else {
+      // Request root only when the user explicitly opens the floating keyboard.
+      Toast.makeText(this, "Approve the superuser request to route keyboard input.", Toast.LENGTH_LONG).show();
+      new Thread(
+              () -> {
+                RootAccess.Result result = RootAccess.check();
+                if (result.success && result.output.contains("uid=0")) {
+                  rootMode = true;
+                  mainHandler.post(() -> { if (keyboardView == null) showKeyboard(); });
+                } else {
+                  mainHandler.post(
+                      () -> {
+                        Toast.makeText(this, "Keyboard needs Shizuku permission or approved root access.", Toast.LENGTH_LONG).show();
+                        stopSelf();
+                      });
+                }
+              })
+          .start();
     }
-    if (keyboardView == null) showKeyboard();
     return START_NOT_STICKY;
   }
 
@@ -136,8 +159,12 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void sendText(String text) {
+    if (rootMode) {
+      String safeText = text.replace("%", "\\%").replace(" ", "%s").replace("'", "");
+      rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " text '" + safeText + "'"));
+      return;
+    }
     try {
-      android.view.InputDevice device = android.view.InputDevice.getDevice(KeyCharacterMap.VIRTUAL_KEYBOARD);
       KeyEvent[] events = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD).getEvents(text.toCharArray());
       if (events == null) return;
       for (KeyEvent event : events) inject(event);
@@ -147,6 +174,13 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void sendKey(int keyCode, boolean shift) {
+    if (rootMode) {
+      rootInputExecutor.execute(
+          () -> {
+            RootAccess.run("input -d " + targetDisplayId + " keyevent " + keyCode);
+          });
+      return;
+    }
     long now = android.os.SystemClock.uptimeMillis();
     int meta = shift ? KeyEvent.META_SHIFT_ON : 0;
     inject(new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0, meta));
@@ -175,6 +209,7 @@ public class FloatingKeyboardService extends Service {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
     }
+    rootInputExecutor.shutdownNow();
     super.onDestroy();
   }
 
