@@ -45,6 +45,12 @@ public class MainActivity extends AppCompatActivity {
   public static final String EXTRA_DISPLAY_ID = "display_id";
   public static final String EXTRA_SOURCE_SCREEN = "source_screen";
 
+  public static final String MIRROR_PACKAGE_NAME = "io.github.jqssun.displaymirror";
+  public static final String ACTION_OPEN_MIRROR_SCREEN =
+      "io.github.jqssun.displaymirror.action.OPEN_SCREEN";
+  public static final String EXTRA_SCREEN = "screen";
+  private String crossAppMirrorScreen;
+
   private NavController navController;
   private BottomNavigationView bottomNav;
   private OnBackPressedCallback crossAppBackCallback;
@@ -353,6 +359,10 @@ public class MainActivity extends AppCompatActivity {
       return;
     }
     crossAppBackCallback.setEnabled(_isOnCrossAppLandingScreen());
+  }
+
+  private void _setCrossAppBackTarget(String screen, int destinationId, int displayId) {
+    // External mirroring integrations are disabled.
   }
 
   private void _clearCrossAppBackTarget() {
