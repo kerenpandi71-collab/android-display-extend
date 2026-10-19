@@ -374,11 +374,18 @@ public class FloatingKeyboardService extends Service {
         }
         return true;
       }
+      if (action == MotionEvent.ACTION_POINTER_DOWN) {
+        // Reset the scroll baseline when the second finger touches down.
+        lastFingerX = e.getX(0);
+        lastFingerY = e.getY(0);
+        return true;
+      }
       if (action == MotionEvent.ACTION_MOVE) {
         if (e.getPointerCount() >= 2) {
           float dy = e.getY(0) - lastFingerY;
           if (Math.abs(dy) > dp(2)) injectMouseScroll(-dy / Math.max(1f, dp(18)));
           lastFingerX = e.getX(0); lastFingerY = e.getY(0);
+          trackpadMoved = true;
           return true;
         }
         float dx = e.getX() - lastFingerX, dy = e.getY() - lastFingerY;
@@ -394,12 +401,17 @@ public class FloatingKeyboardService extends Service {
       }
       if (action == MotionEvent.ACTION_UP) {
         if (!trackpadMoved) {
+          // A standard mouse click is DOWN followed by UP. Sending BUTTON_PRESS/
+          // BUTTON_RELEASE as well can cause some Android builds to reject the sequence.
           injectMouseEvent(MotionEvent.ACTION_DOWN, 0, trackpadButton);
-          injectMouseEvent(MotionEvent.ACTION_BUTTON_PRESS, trackpadButton, trackpadButton);
-          injectMouseEvent(MotionEvent.ACTION_BUTTON_RELEASE, trackpadButton, 0);
           injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
         }
         trackpadButton = MotionEvent.BUTTON_PRIMARY;
+        return true;
+      }
+      if (action == MotionEvent.ACTION_POINTER_UP) {
+        lastFingerX = e.getX(0);
+        lastFingerY = e.getY(0);
         return true;
       }
       if (action == MotionEvent.ACTION_CANCEL) { trackpadButton = MotionEvent.BUTTON_PRIMARY; return true; }
