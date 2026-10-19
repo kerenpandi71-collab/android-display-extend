@@ -313,24 +313,30 @@ public class FloatingKeyboardService extends Service {
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(104));
     lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
     pad.setOnTouchListener(new android.view.View.OnTouchListener() {
-      float sx, sy; long downAt; boolean moved;
+      float sx, sy, ex, ey; long downAt; boolean moved;
       @Override public boolean onTouch(android.view.View v, MotionEvent e) {
         switch (e.getActionMasked()) {
-          case MotionEvent.ACTION_DOWN: sx=e.getRawX(); sy=e.getRawY(); downAt=System.currentTimeMillis(); moved=false; return true;
+          case MotionEvent.ACTION_DOWN:
+            sx=e.getX(); sy=e.getY(); ex=sx; ey=sy; downAt=System.currentTimeMillis(); moved=false; return true;
           case MotionEvent.ACTION_MOVE:
-            float dx=e.getRawX()-sx, dy=e.getRawY()-sy;
-            if (Math.abs(dx)>dp(4)||Math.abs(dy)>dp(4)) moved=true;
-            if (moved && rootMode) {
-              int mx=Math.round(dx/Math.max(1f,getResources().getDisplayMetrics().density*2));
-              int my=Math.round(dy/Math.max(1f,getResources().getDisplayMetrics().density*2));
-              if(mx!=0||my!=0) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " motionevent MOVE " + mx + " " + my));
-              sx=e.getRawX(); sy=e.getRawY();
-            }
+            ex=e.getX(); ey=e.getY();
+            if (Math.abs(ex-sx)>dp(5)||Math.abs(ey-sy)>dp(5)) moved=true;
             return true;
           case MotionEvent.ACTION_UP:
-            if(!moved) {
-              if(rootMode) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " tap 500 500"));
-              else Toast.makeText(FloatingKeyboardService.this, "Klik trackpad memerlukan mode root untuk diarahkan ke display virtual.", Toast.LENGTH_SHORT).show();
+            ex=e.getX(); ey=e.getY();
+            if (rootMode) {
+              android.view.Display display = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+              android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+              if(display!=null) display.getRealMetrics(dm);
+              final int w=Math.max(1,dm.widthPixels), h=Math.max(1,dm.heightPixels);
+              final int x1=Math.max(0,Math.min(w-1,Math.round(sx/Math.max(1,v.getWidth())*w)));
+              final int y1=Math.max(0,Math.min(h-1,Math.round(sy/Math.max(1,v.getHeight())*h)));
+              final int x2=Math.max(0,Math.min(w-1,Math.round(ex/Math.max(1,v.getWidth())*w)));
+              final int y2=Math.max(0,Math.min(h-1,Math.round(ey/Math.max(1,v.getHeight())*h)));
+              if(moved) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " swipe " + x1 + " " + y1 + " " + x2 + " " + y2 + " 250"));
+              else rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " tap " + x1 + " " + y1));
+            } else {
+              Toast.makeText(FloatingKeyboardService.this, "Gestur display virtual pada layout gabungan memerlukan mode root.", Toast.LENGTH_SHORT).show();
             }
             return true;
         }
