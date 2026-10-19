@@ -287,11 +287,30 @@ public class FloatingKeyboardService extends Service {
       addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
     } else {
+      addRow(panel, new String[] {"Esc","F1","F2","F3","F4","F5","F6"});
+      addRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p"});
+      addRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l"});
+      addBottomRow(panel, "Shift", "z", "x", "c", "⌫");
+      addBottomRow(panel, "Ctrl", "Fn", "Alt", "Space", "Enter");
+      addIntegratedControls(panel);
       addIntegratedTrackpad(panel);
-      addRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
-      addRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
-      addBottomRow(panel, "⌫", "Ctrl", "Space", "Tab", "Enter");
     }
+  }
+
+  private void addIntegratedControls(LinearLayout panel) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    addKey(row, "↖", () -> Toast.makeText(this, "Mode pointer aktif", Toast.LENGTH_SHORT).show(), 1f);
+    addKey(row, "⌨", () -> {
+      keyboardLayout = 1;
+      keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+      showKeyboard();
+    }, 1f);
+    addKey(row, "⚙", () -> {
+      settingsVisible = true;
+      showKeyboard();
+    }, 1f);
+    panel.addView(row);
   }
 
   private void addIntegratedTrackpad(LinearLayout panel) {
