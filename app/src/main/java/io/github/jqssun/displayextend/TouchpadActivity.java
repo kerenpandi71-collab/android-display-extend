@@ -511,6 +511,15 @@ public class TouchpadActivity extends AppCompatActivity {
     return activity.cursorView != null || activity.useAccessibilityCursor;
   }
 
+  public static boolean scrollFloatingTrackpad(int targetDisplayId, float amount) {
+    TouchpadActivity activity = activeInstance;
+    if (activity == null || activity.displayId != targetDisplayId || activity.isFinishing()) {
+      return false;
+    }
+    activity.ipcExecutor.execute(() -> activity._injectScroll(amount));
+    return true;
+  }
+
   /**
    * Reuses the built-in trackpad's touch replay path for left-clicks. This avoids
    * treating cursor movement as a hardware mouse on Android virtual displays.
@@ -535,6 +544,12 @@ public class TouchpadActivity extends AppCompatActivity {
         activity._injectMouseEvent(now, now, MotionEvent.ACTION_UP, 0, 0);
       });
       return true;
+    }
+
+    if (activity.inputManager == null
+        && (Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+            || TouchpadAccessibilityService.getInstance() == null)) {
+      return false;
     }
 
     activity._cancelPendingTapReplay();
