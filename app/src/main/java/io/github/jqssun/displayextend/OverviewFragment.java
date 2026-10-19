@@ -114,14 +114,6 @@ public class OverviewFragment extends Fragment {
     permissionsStatusDetail = view.findViewById(R.id.permissions_status_detail);
     permissionsStatusIcon = view.findViewById(R.id.permissions_status_icon);
 
-    MaterialButton openCastBtn = view.findViewById(R.id.open_cast_btn);
-    Intent castIntent = new Intent(android.provider.Settings.ACTION_CAST_SETTINGS);
-    boolean castAvailable =
-        castIntent.resolveActivity(requireContext().getPackageManager()) != null;
-    openCastBtn.setEnabled(castAvailable);
-    if (castAvailable) {
-      openCastBtn.setOnClickListener(v -> startActivity(castIntent));
-    }
     view.findViewById(R.id.open_mirror_overview_btn)
         .setOnClickListener(v -> MirrorIntegrationHelper.openMirrorOverview(requireContext()));
 
