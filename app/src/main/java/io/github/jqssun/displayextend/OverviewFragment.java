@@ -74,7 +74,7 @@ public class OverviewFragment extends Fragment {
     rootAccessButton.setOnClickListener(
         v -> {
           rootAccessButton.setEnabled(false);
-          rootAccessStatus.setText("Waiting for superuser approval…");
+          rootAccessStatus.setText(R.string.root_access_waiting);
           new Thread(
                   () -> {
                     RootAccess.Result result = RootAccess.check();
@@ -83,16 +83,18 @@ public class OverviewFragment extends Fragment {
                         () -> {
                           rootAccessButton.setEnabled(true);
                           if (result.success && result.output.contains("uid=0")) {
-                            rootAccessStatus.setText("Root granted. Root-only actions can request access when needed.");
-                            rootAccessButton.setText("Root ready");
+                            rootAccessStatus.setText(R.string.root_access_granted);
+                            rootAccessButton.setText(R.string.root_access_ready);
                           } else {
-                            rootAccessStatus.setText("Root unavailable or denied. Shizuku remains available for supported features.");
-                            rootAccessButton.setText("Check again");
+                            rootAccessStatus.setText(R.string.root_access_unavailable);
+                            rootAccessButton.setText(R.string.root_access_check_again);
                           }
                         });
                   })
               .start();
         });
+
+    view.findViewById(R.id.overlay_display_manager_btn).setOnClickListener(v -> startActivity(new Intent(requireContext(), OverlayDisplayActivity.class)));
 
     shizukuPermissionBtn = view.findViewById(R.id.shizuku_permission_btn);
     shizukuPermissionBtn.setOnClickListener(v -> State.startNewJob(new AcquireShizuku()));
