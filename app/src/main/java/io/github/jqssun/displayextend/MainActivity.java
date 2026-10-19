@@ -44,19 +44,10 @@ public class MainActivity extends AppCompatActivity {
       "io.github.jqssun.displayextend.action.OPEN_SETTINGS";
   public static final String EXTRA_DISPLAY_ID = "display_id";
   public static final String EXTRA_SOURCE_SCREEN = "source_screen";
-  public static final String MIRROR_PACKAGE_NAME = "io.github.jqssun.displaymirror";
-  public static final String ACTION_OPEN_MIRROR_SCREEN =
-      "io.github.jqssun.displaymirror.action.OPEN_SCREEN";
-  public static final String EXTRA_SCREEN = "screen";
-  private static final String MIRROR_SCREEN_SUNSHINE = "sunshine";
-  private static final String MIRROR_SCREEN_AIRPLAY = "airplay";
-  private static final String MIRROR_SCREEN_DISPLAYLINK = "displaylink";
-  private static final String MIRROR_SCREEN_SETTINGS = "settings";
 
   private NavController navController;
   private BottomNavigationView bottomNav;
   private OnBackPressedCallback crossAppBackCallback;
-  private String crossAppMirrorScreen;
   private int crossAppLandingDestinationId = -1;
   private int crossAppLandingDisplayId = -1;
 
@@ -365,37 +356,11 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void _clearCrossAppBackTarget() {
-    crossAppMirrorScreen = null;
     crossAppLandingDestinationId = -1;
     crossAppLandingDisplayId = -1;
   }
 
-  private boolean _isValidMirrorScreen(String screen) {
-    return MIRROR_SCREEN_SUNSHINE.equals(screen)
-        || MIRROR_SCREEN_AIRPLAY.equals(screen)
-        || MIRROR_SCREEN_DISPLAYLINK.equals(screen)
-        || MIRROR_SCREEN_SETTINGS.equals(screen);
-  }
+  private boolean _isValidMirrorScreen(String screen) { return false; }
 
-  private void _setCrossAppBackTarget(
-      String mirrorScreen, int landingDestinationId, int landingDisplayId) {
-    crossAppMirrorScreen = mirrorScreen;
-    crossAppLandingDestinationId = landingDestinationId;
-    crossAppLandingDisplayId = landingDisplayId;
-  }
 
-  private void _returnToMirrorScreen() {
-    Intent intent = new Intent(ACTION_OPEN_MIRROR_SCREEN);
-    intent.setPackage(MIRROR_PACKAGE_NAME);
-    intent.addCategory(Intent.CATEGORY_DEFAULT);
-    intent.putExtra(EXTRA_SCREEN, crossAppMirrorScreen);
-
-    _clearCrossAppBackTarget();
-    _updateCrossAppBackState();
-
-    if (intent.resolveActivity(getPackageManager()) != null) {
-      startActivity(intent);
-    }
-    moveTaskToBack(true);
-  }
 }
