@@ -217,7 +217,7 @@ Gestur yang tersedia:
     <string name="floating_button">Tombol kembali melayang</string>
     <string name="cannot_get_app_list">Tidak dapat mengambil daftar aplikasi. Periksa izin.</string>
     <string name="first_launch_hint">Aplikasi dibuka di ponsel untuk memberikan izin. Ketuk lagi untuk menampilkannya di layar tujuan.</string>
-    <string name="input_routing_limitation">Karena keterbatasan versi Android, ketuk 'Matikan layar' agar layar sentuh dapat digunakan.</string>
+    <string name="input_routing_limitation">Karena keterbatasan versi Android, ketuk &quot;Matikan layar&quot; agar layar sentuh dapat digunakan.</string>
 
     <!-- About -->
     <string name="version_format">Versi: %1$s (Android %2$s)</string>
