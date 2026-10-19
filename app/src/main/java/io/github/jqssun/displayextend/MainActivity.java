@@ -15,7 +15,6 @@ import android.view.Display;
 import android.view.View;
 import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
-import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
@@ -43,20 +42,8 @@ public class MainActivity extends AppCompatActivity {
   public static final String ACTION_OPEN_SETTINGS =
       "io.github.jqssun.displayextend.action.OPEN_SETTINGS";
   public static final String EXTRA_DISPLAY_ID = "display_id";
-  public static final String EXTRA_SOURCE_SCREEN = "source_screen";
-
-  public static final String MIRROR_PACKAGE_NAME = "io.github.jqssun.displaymirror";
-  public static final String ACTION_OPEN_MIRROR_SCREEN =
-      "io.github.jqssun.displaymirror.action.OPEN_SCREEN";
-  public static final String EXTRA_SCREEN = "screen";
-  private String crossAppMirrorScreen;
-
   private NavController navController;
   private BottomNavigationView bottomNav;
-  private OnBackPressedCallback crossAppBackCallback;
-  private int crossAppLandingDestinationId = -1;
-  private int crossAppLandingDisplayId = -1;
-
   private final ActivityResultLauncher<Intent> mediaProjectionLauncher =
       registerForActivityResult(
           new ActivityResultContracts.StartActivityForResult(),
@@ -170,16 +157,6 @@ public class MainActivity extends AppCompatActivity {
             .build();
     NavigationUI.setupActionBarWithNavController(this, navController, appBarConfig);
     NavigationUI.setupWithNavController(bottomNav, navController);
-    crossAppBackCallback =
-        new OnBackPressedCallback(false) {
-          @Override
-          public void handleOnBackPressed() {
-            _returnToMirrorScreen();
-          }
-        };
-    getOnBackPressedDispatcher().addCallback(this, crossAppBackCallback);
-    navController.addOnDestinationChangedListener(
-        (controller, destination, arguments) -> _updateCrossAppBackState());
     _handleLaunchIntent(getIntent());
 
     IntentFilter permissionFilter = new IntentFilter(ACTION_USB_PERMISSION);
@@ -245,67 +222,29 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void _handleLaunchIntent(Intent intent) {
-    if (intent == null) {
-      return;
-    }
-
+    if (intent == null) return;
     String action = intent.getAction();
     State.log("MainActivity created with action: " + action);
-    String sourceScreen = intent.getStringExtra(EXTRA_SOURCE_SCREEN);
     if (ACTION_OPEN_OVERVIEW.equals(action)) {
       _navigateToOverview();
-      if (_isValidMirrorScreen(sourceScreen)) {
-        _setCrossAppBackTarget(sourceScreen, R.id.overview_fragment, -1);
-      } else {
-        _clearCrossAppBackTarget();
-      }
-      _updateCrossAppBackState();
       return;
     }
     if (ACTION_OPEN_SETTINGS.equals(action)) {
       _navigateToSettings();
-      if (_isValidMirrorScreen(sourceScreen)) {
-        _setCrossAppBackTarget(sourceScreen, R.id.settings_fragment, -1);
-      } else {
-        _clearCrossAppBackTarget();
-      }
-      _updateCrossAppBackState();
       return;
     }
-    if (!ACTION_OPEN_DISPLAY_DETAIL.equals(action)) {
-      _clearCrossAppBackTarget();
-      _updateCrossAppBackState();
-      return;
-    }
-
+    if (!ACTION_OPEN_DISPLAY_DETAIL.equals(action)) return;
     int displayId = intent.getIntExtra(EXTRA_DISPLAY_ID, -1);
     DisplayManager displayManager = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
     Display display = displayManager != null ? displayManager.getDisplay(displayId) : null;
     if (display == null) {
       _navigateToOverview();
       Toast.makeText(this, R.string.display_unavailable_opened_overview, Toast.LENGTH_SHORT).show();
-      if (_isValidMirrorScreen(sourceScreen)) {
-        _setCrossAppBackTarget(sourceScreen, R.id.overview_fragment, -1);
-      } else {
-        _clearCrossAppBackTarget();
-      }
-      _updateCrossAppBackState();
       return;
     }
-
-    if (_isValidMirrorScreen(sourceScreen)) {
-      _setCrossAppBackTarget(sourceScreen, R.id.display_detail_fragment, displayId);
-    } else {
-      _clearCrossAppBackTarget();
-    }
-    if (_isShowingDisplayDetail(displayId)) {
-      _updateCrossAppBackState();
-      return;
-    }
-
+    if (_isShowingDisplayDetail(displayId)) return;
     _navigateToOverview();
     navigateToDisplayDetail(displayId);
-    _updateCrossAppBackState();
   }
 
   private void _navigateToOverview() {
@@ -338,45 +277,5 @@ public class MainActivity extends AppCompatActivity {
             : null;
     return args != null && args.getInt("display_id", -1) == displayId;
   }
-
-  private boolean _isOnCrossAppLandingScreen() {
-    if (crossAppMirrorScreen == null
-        || navController == null
-        || navController.getCurrentDestination() == null) {
-      return false;
-    }
-    if (navController.getCurrentDestination().getId() != crossAppLandingDestinationId) {
-      return false;
-    }
-    if (crossAppLandingDestinationId != R.id.display_detail_fragment) {
-      return true;
-    }
-    return _isShowingDisplayDetail(crossAppLandingDisplayId);
-  }
-
-  private void _updateCrossAppBackState() {
-    if (crossAppBackCallback == null) {
-      return;
-    }
-    crossAppBackCallback.setEnabled(_isOnCrossAppLandingScreen());
-  }
-
-  private void _returnToMirrorScreen() {
-    // External screen-mirroring navigation is disabled.
-    _clearCrossAppBackTarget();
-    _updateCrossAppBackState();
-  }
-
-  private void _setCrossAppBackTarget(String screen, int destinationId, int displayId) {
-    // External mirroring integrations are disabled.
-  }
-
-  private void _clearCrossAppBackTarget() {
-    crossAppLandingDestinationId = -1;
-    crossAppLandingDisplayId = -1;
-  }
-
-  private boolean _isValidMirrorScreen(String screen) { return false; }
-
 
 }
