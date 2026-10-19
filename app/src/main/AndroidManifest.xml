@@ -12,7 +12,6 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="io.github.jqssun.displaymirror.permission.TOUCHSCREEN_BRIDGE" />
 
     <application
         android:allowBackup="true"
