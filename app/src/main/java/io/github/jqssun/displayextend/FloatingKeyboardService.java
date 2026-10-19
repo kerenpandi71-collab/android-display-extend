@@ -90,8 +90,13 @@ public class FloatingKeyboardService extends Service {
     }
     if (ShizukuUtils.hasPermission()) {
       rootMode = false;
-      try { inputManager = ServiceUtils.getInputManager(); } catch (Throwable e) { inputManager = null; }
-
+      try {
+        inputManager = ServiceUtils.getInputManager();
+        if (inputManager == null) State.log("floating input: Shizuku InputManager unavailable");
+      } catch (Throwable e) {
+        inputManager = null;
+        State.log("floating input: failed to obtain InputManager: " + e.getMessage());
+      }
       if (keyboardView == null) showKeyboard();
     } else {
       // Request root only when the user explicitly opens the floating keyboard.
@@ -319,7 +324,13 @@ public class FloatingKeyboardService extends Service {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
     addKey(row, "Klik kanan", () -> { trackpadButton = MotionEvent.BUTTON_SECONDARY; Toast.makeText(this, "Sekarang ketuk trackpad untuk klik kanan", Toast.LENGTH_SHORT).show(); }, 1.3f);
-    addKey(row, "⌨", () -> { keyboardLayout = 1; keyboardPrefs.edit().putInt("layout", keyboardLayout).apply(); rebuildKeyboard(); }, 1f);
+    addKey(row, "⌨", () -> {
+      // Keep the integrated keyboard + trackpad layout active; this key cycles
+      // between the integrated layout and the compact laptop layout.
+      keyboardLayout = (keyboardLayout == 4) ? 0 : 4;
+      keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+      rebuildKeyboard();
+    }, 1f);
     addKey(row, "⚙", () -> {
       settingsVisible = true;
       rebuildKeyboard();
@@ -348,7 +359,7 @@ public class FloatingKeyboardService extends Service {
     pad.setOnTouchListener((v, e) -> {
       if (inputManager == null) {
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
-          Toast.makeText(this, "Gerakan mouse memerlukan izin Shizuku aktif. Root saja tidak menyediakan injeksi mouse pada jalur ini.", Toast.LENGTH_SHORT).show();
+          Toast.makeText(this, "Trackpad mouse perlu Shizuku aktif dan diizinkan. Keyboard tetap bisa memakai root.", Toast.LENGTH_LONG).show();
         }
         return true;
       }
@@ -409,7 +420,8 @@ public class FloatingKeyboardService extends Service {
     try {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
-      inputManager.injectInputEvent(event, 0);
+      boolean accepted = inputManager.injectInputEvent(event, 0);
+      if (!accepted) State.log("trackpad scroll event rejected for display " + targetDisplayId);
     } catch (Throwable t) { State.log("trackpad scroll injection failed: " + t.getMessage()); }
     finally { event.recycle(); }
   }
@@ -427,7 +439,8 @@ public class FloatingKeyboardService extends Service {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
       if (action == MotionEvent.ACTION_BUTTON_PRESS || action == MotionEvent.ACTION_BUTTON_RELEASE) hidden.setActionButton(actionButton);
-      inputManager.injectInputEvent(event, 0);
+      boolean accepted = inputManager.injectInputEvent(event, 0);
+      if (!accepted) State.log("trackpad mouse event rejected for display " + targetDisplayId + ", action=" + action);
     } catch (Throwable t) { State.log("trackpad mouse injection failed: " + t.getMessage()); }
     finally { event.recycle(); }
   }
@@ -547,7 +560,13 @@ public class FloatingKeyboardService extends Service {
     try {
       KeyEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
-      ServiceUtils.getInputManager().injectInputEvent(event, 0);
+      IInputManager manager = inputManager != null ? inputManager : ServiceUtils.getInputManager();
+      if (manager == null) {
+        State.log("floating keyboard input failed: InputManager unavailable");
+        return;
+      }
+      boolean accepted = manager.injectInputEvent(event, 0);
+      if (!accepted) State.log("floating keyboard input rejected for display " + targetDisplayId + ", keyCode=" + event.getKeyCode());
     } catch (Throwable e) {
       State.log("floating keyboard input failed: " + e.getMessage());
     }
