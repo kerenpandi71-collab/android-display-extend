@@ -69,6 +69,31 @@ public class OverviewFragment extends Fragment {
             startActivity(
                 new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rikkaapps/shizuku"))));
 
+    TextView rootAccessStatus = view.findViewById(R.id.root_access_status);
+    MaterialButton rootAccessButton = view.findViewById(R.id.root_access_button);
+    rootAccessButton.setOnClickListener(
+        v -> {
+          rootAccessButton.setEnabled(false);
+          rootAccessStatus.setText("Waiting for superuser approval…");
+          new Thread(
+                  () -> {
+                    RootAccess.Result result = RootAccess.check();
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(
+                        () -> {
+                          rootAccessButton.setEnabled(true);
+                          if (result.success && result.output.contains("uid=0")) {
+                            rootAccessStatus.setText("Root granted. Root-only actions can request access when needed.");
+                            rootAccessButton.setText("Root ready");
+                          } else {
+                            rootAccessStatus.setText("Root unavailable or denied. Shizuku remains available for supported features.");
+                            rootAccessButton.setText("Check again");
+                          }
+                        });
+                  })
+              .start();
+        });
+
     shizukuPermissionBtn = view.findViewById(R.id.shizuku_permission_btn);
     shizukuPermissionBtn.setOnClickListener(v -> State.startNewJob(new AcquireShizuku()));
 
