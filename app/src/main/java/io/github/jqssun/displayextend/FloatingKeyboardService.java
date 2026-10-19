@@ -194,8 +194,6 @@ public class FloatingKeyboardService extends Service {
       ServiceUtils.getInputManager().injectInputEvent(event, 0);
     } catch (Throwable e) {
       State.log("floating keyboard input failed: " + e.getMessage());
-    } finally {
-      event.recycle();
     }
   }
 
