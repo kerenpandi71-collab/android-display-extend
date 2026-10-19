@@ -276,6 +276,29 @@ public class TouchpadActivity extends AppCompatActivity {
               launchLastPackage(this, displayId);
             });
 
+    if (bottomButtons instanceof android.view.ViewGroup) {
+      MaterialButton floatingKeyboardButton = new MaterialButton(this);
+      floatingKeyboardButton.setText("Floating keyboard");
+      floatingKeyboardButton.setTextSize(12);
+      floatingKeyboardButton.setOnClickListener(
+          v -> {
+            if (!Settings.canDrawOverlays(this)) {
+              Intent overlayIntent =
+                  new Intent(
+                      Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                      Uri.parse("package:" + getPackageName()));
+              startActivity(overlayIntent);
+              Toast.makeText(this, "Allow overlay permission, then tap Floating keyboard again.", Toast.LENGTH_LONG).show();
+              return;
+            }
+            Intent keyboardIntent = new Intent(this, FloatingKeyboardService.class);
+            keyboardIntent.setAction(FloatingKeyboardService.ACTION_SHOW);
+            keyboardIntent.putExtra(FloatingKeyboardService.EXTRA_DISPLAY_ID, displayId);
+            startService(keyboardIntent);
+          });
+      ((android.view.ViewGroup) bottomButtons).addView(floatingKeyboardButton);
+    }
+
     _setupModeSpinner();
 
     findViewById(R.id.rotate_ccw_button)
