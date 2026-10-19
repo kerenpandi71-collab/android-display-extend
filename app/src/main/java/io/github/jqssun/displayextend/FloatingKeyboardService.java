@@ -587,8 +587,20 @@ public class FloatingKeyboardService extends Service {
     injectMouseEvent(action, 0, 0);
   }
 
+  private IInputManager getActiveInputManager() {
+    try {
+      return inputManager != null ? inputManager : ServiceUtils.getInputManager();
+    } catch (Throwable t) {
+      State.log("trackpad cannot obtain InputManager: " + t.getMessage());
+      return null;
+    }
+  }
+
   private void injectMouseClick(int button) {
-    if (inputManager == null || !ensureMousePosition()) return;
+    if (getActiveInputManager() == null || !ensureMousePosition()) {
+      State.log("trackpad click skipped: InputManager unavailable or target display missing");
+      return;
+    }
     injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
     injectMouseEvent(MotionEvent.ACTION_BUTTON_PRESS, button, button);
     injectMouseEvent(MotionEvent.ACTION_BUTTON_RELEASE, button, 0);
@@ -596,7 +608,11 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void injectMouseScroll(float amount) {
-    if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
+    IInputManager manager = getActiveInputManager();
+    if (manager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) {
+      State.log("trackpad scroll skipped: InputManager unavailable or pointer not initialized");
+      return;
+    }
     long now = android.os.SystemClock.uptimeMillis();
     MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
     props[0].id = 0;
@@ -610,7 +626,7 @@ public class FloatingKeyboardService extends Service {
     try {
       MotionEventHidden hidden = Refine.unsafeCast(event);
       hidden.setDisplayId(targetDisplayId);
-      boolean accepted = inputManager.injectInputEvent(event, 0);
+      boolean accepted = manager.injectInputEvent(event, 0);
       if (!accepted) State.log("trackpad scroll rejected: display=" + targetDisplayId);
     } catch (Throwable t) {
       State.log("trackpad scroll injection failed: " + t.getMessage());
@@ -620,7 +636,11 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void injectMouseEvent(int action, int actionButton, int buttonState) {
-    if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
+    IInputManager manager = getActiveInputManager();
+    if (manager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) {
+      State.log("trackpad event skipped: InputManager unavailable or pointer not initialized");
+      return;
+    }
     long now = android.os.SystemClock.uptimeMillis();
     MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
     props[0].id = 0;
