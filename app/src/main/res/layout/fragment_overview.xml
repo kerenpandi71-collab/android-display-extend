@@ -226,6 +226,24 @@
             android:orientation="vertical" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/overlay_display_manager_btn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="8dp"
+            android:text="@string/overlay_manager_button"
+            style="@style/Widget.Material3.Button.TonalButton" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="2dp"
+            android:text="@string/overlay_manager_button_desc"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/open_cast_btn"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
