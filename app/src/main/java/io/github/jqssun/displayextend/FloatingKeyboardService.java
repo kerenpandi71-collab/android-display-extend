@@ -584,7 +584,14 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void injectMouseHover(int action) {
-    injectMouseEvent(action, 0, 0);
+    // Match TouchpadActivity's working input path: use SOURCE_MOUSE + ACTION_MOVE.
+    // ACTION_HOVER_MOVE (9) is rejected on some Android 15 virtual displays.
+    if (action == MotionEvent.ACTION_HOVER_ENTER || action == MotionEvent.ACTION_HOVER_MOVE
+        || action == MotionEvent.ACTION_HOVER_EXIT) {
+      injectMouseEvent(MotionEvent.ACTION_MOVE, 0, 0);
+    } else {
+      injectMouseEvent(action, 0, 0);
+    }
   }
 
   private IInputManager getActiveInputManager() {
@@ -601,10 +608,13 @@ public class FloatingKeyboardService extends Service {
       State.log("trackpad click skipped: InputManager unavailable or target display missing");
       return;
     }
-    injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
+    long now = android.os.SystemClock.uptimeMillis();
+    // Send the same down/press/release/up sequence used by the built-in Extended trackpad.
+    injectMouseEvent(MotionEvent.ACTION_DOWN, 0, button);
     injectMouseEvent(MotionEvent.ACTION_BUTTON_PRESS, button, button);
     injectMouseEvent(MotionEvent.ACTION_BUTTON_RELEASE, button, 0);
-    State.log("trackpad click sent: display=" + targetDisplayId + ", button=" + button);
+    injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
+    State.log("trackpad click sequence sent: display=" + targetDisplayId + ", button=" + button);
   }
 
   private void injectMouseScroll(float amount) {
