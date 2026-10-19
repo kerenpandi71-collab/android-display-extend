@@ -13,6 +13,9 @@ import java.util.concurrent.Executors;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.InputDevice;
+import android.view.MotionEventHidden;
+import android.hardware.input.IInputManager;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.View;
@@ -51,6 +54,12 @@ public class FloatingKeyboardService extends Service {
   private android.content.SharedPreferences keyboardPrefs;
   private final Handler mainHandler = new Handler(Looper.getMainLooper());
   private final ExecutorService rootInputExecutor = Executors.newSingleThreadExecutor();
+  private IInputManager inputManager;
+  private float mouseX = -1f, mouseY = -1f;
+  private float lastFingerX, lastFingerY;
+  private boolean trackpadMoved;
+  private int trackpadButton = MotionEvent.BUTTON_PRIMARY;
+  private static final float POINTER_SENSITIVITY = 2.2f;
 
   @Override
   public void onCreate() {
@@ -79,6 +88,8 @@ public class FloatingKeyboardService extends Service {
     }
     if (ShizukuUtils.hasPermission()) {
       rootMode = false;
+      try { inputManager = ServiceUtils.getInputManager(); } catch (Throwable e) { inputManager = null; }
+
       if (keyboardView == null) showKeyboard();
     } else {
       // Request root only when the user explicitly opens the floating keyboard.
@@ -300,15 +311,11 @@ public class FloatingKeyboardService extends Service {
   private void addIntegratedControls(LinearLayout panel) {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
-    addKey(row, "↖", () -> Toast.makeText(this, "Mode pointer aktif", Toast.LENGTH_SHORT).show(), 1f);
-    addKey(row, "⌨", () -> {
-      keyboardLayout = 1;
-      keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
-      showKeyboard();
-    }, 1f);
+    addKey(row, "Klik kanan", () -> { trackpadButton = MotionEvent.BUTTON_SECONDARY; Toast.makeText(this, "Ketuk trackpad untuk klik kanan", Toast.LENGTH_SHORT).show(); }, 1.3f);
+    addKey(row, "⌨", () -> { keyboardLayout = 1; keyboardPrefs.edit().putInt("layout", keyboardLayout).apply(); rebuildKeyboard(); }, 1f);
     addKey(row, "⚙", () -> {
       settingsVisible = true;
-      showKeyboard();
+      rebuildKeyboard();
     }, 1f);
     panel.addView(row);
   }
@@ -331,37 +338,89 @@ public class FloatingKeyboardService extends Service {
     bg.setStroke(dp(1), Color.rgb(79, 84, 103)); pad.setBackground(bg);
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(104));
     lp.setMargins(dp(2), 0, dp(2), dp(4)); panel.addView(pad, lp);
-    pad.setOnTouchListener(new android.view.View.OnTouchListener() {
-      float sx, sy, ex, ey; long downAt; boolean moved;
-      @Override public boolean onTouch(android.view.View v, MotionEvent e) {
-        switch (e.getActionMasked()) {
-          case MotionEvent.ACTION_DOWN:
-            sx=e.getX(); sy=e.getY(); ex=sx; ey=sy; downAt=System.currentTimeMillis(); moved=false; return true;
-          case MotionEvent.ACTION_MOVE:
-            ex=e.getX(); ey=e.getY();
-            if (Math.abs(ex-sx)>dp(5)||Math.abs(ey-sy)>dp(5)) moved=true;
-            return true;
-          case MotionEvent.ACTION_UP:
-            ex=e.getX(); ey=e.getY();
-            if (rootMode) {
-              android.view.Display display = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
-              android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
-              if(display!=null) display.getRealMetrics(dm);
-              final int w=Math.max(1,dm.widthPixels), h=Math.max(1,dm.heightPixels);
-              final int x1=Math.max(0,Math.min(w-1,Math.round(sx/Math.max(1,v.getWidth())*w)));
-              final int y1=Math.max(0,Math.min(h-1,Math.round(sy/Math.max(1,v.getHeight())*h)));
-              final int x2=Math.max(0,Math.min(w-1,Math.round(ex/Math.max(1,v.getWidth())*w)));
-              final int y2=Math.max(0,Math.min(h-1,Math.round(ey/Math.max(1,v.getHeight())*h)));
-              if(moved) rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " swipe " + x1 + " " + y1 + " " + x2 + " " + y2 + " 250"));
-              else rootInputExecutor.execute(() -> RootAccess.run("input -d " + targetDisplayId + " tap " + x1 + " " + y1));
-            } else {
-              Toast.makeText(FloatingKeyboardService.this, "Gestur display virtual pada layout gabungan memerlukan mode root.", Toast.LENGTH_SHORT).show();
-            }
-            return true;
+    pad.setOnTouchListener((v, e) -> {
+      if (inputManager == null) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+          Toast.makeText(this, "Gerakan mouse memerlukan izin Shizuku aktif. Root saja tidak menyediakan injeksi mouse pada jalur ini.", Toast.LENGTH_SHORT).show();
         }
         return true;
       }
-    });
+      final int action = e.getActionMasked();
+      if (action == MotionEvent.ACTION_DOWN) {
+        lastFingerX = e.getX(); lastFingerY = e.getY(); trackpadMoved = false;
+        if (mouseX < 0 || mouseY < 0) {
+          android.view.Display d = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+          if (d == null) return true;
+          android.util.DisplayMetrics dm = new android.util.DisplayMetrics(); d.getRealMetrics(dm);
+          mouseX = dm.widthPixels / 2f; mouseY = dm.heightPixels / 2f;
+        }
+        return true;
+      }
+      if (action == MotionEvent.ACTION_MOVE) {
+        if (e.getPointerCount() >= 2) {
+          float dy = e.getY(0) - lastFingerY;
+          if (Math.abs(dy) > dp(2)) injectMouseScroll(-dy / Math.max(1f, dp(18)));
+          lastFingerX = e.getX(0); lastFingerY = e.getY(0);
+          return true;
+        }
+        float dx = e.getX() - lastFingerX, dy = e.getY() - lastFingerY;
+        if (Math.abs(dx) + Math.abs(dy) > dp(1)) trackpadMoved = true;
+        lastFingerX = e.getX(); lastFingerY = e.getY();
+        android.view.Display d = ((android.hardware.display.DisplayManager)getSystemService(DISPLAY_SERVICE)).getDisplay(targetDisplayId);
+        if (d == null) return true;
+        android.util.DisplayMetrics dm = new android.util.DisplayMetrics(); d.getRealMetrics(dm);
+        mouseX = Math.max(0, Math.min(dm.widthPixels - 1, mouseX + dx * POINTER_SENSITIVITY * dm.widthPixels / Math.max(1f, v.getWidth())));
+        mouseY = Math.max(0, Math.min(dm.heightPixels - 1, mouseY + dy * POINTER_SENSITIVITY * dm.heightPixels / Math.max(1f, v.getHeight())));
+        injectMouseEvent(MotionEvent.ACTION_HOVER_MOVE, 0, 0);
+        return true;
+      }
+      if (action == MotionEvent.ACTION_UP) {
+        if (!trackpadMoved) {
+          injectMouseEvent(MotionEvent.ACTION_DOWN, trackpadButton, trackpadButton);
+          injectMouseEvent(MotionEvent.ACTION_UP, 0, 0);
+        }
+        trackpadButton = MotionEvent.BUTTON_PRIMARY;
+        return true;
+      }
+      if (action == MotionEvent.ACTION_CANCEL) { trackpadButton = MotionEvent.BUTTON_PRIMARY; return true; }
+      return true;
+    });;
+  }
+
+  private void injectMouseScroll(float amount) {
+    if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
+    long now = android.os.SystemClock.uptimeMillis();
+    MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
+    props[0].id = 0; props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
+    MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
+    coords[0].x = mouseX; coords[0].y = mouseY;
+    coords[0].setAxisValue(MotionEvent.AXIS_VSCROLL, amount);
+    MotionEvent event = MotionEvent.obtain(now, now, MotionEvent.ACTION_SCROLL, 1, props, coords,
+        0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0);
+    try {
+      MotionEventHidden hidden = Refine.unsafeCast(event);
+      hidden.setDisplayId(targetDisplayId);
+      inputManager.injectInputEvent(event, 0);
+    } catch (Throwable t) { State.log("trackpad scroll injection failed: " + t.getMessage()); }
+    finally { event.recycle(); }
+  }
+
+  private void injectMouseEvent(int action, int actionButton, int buttonState) {
+    if (inputManager == null || targetDisplayId < 0 || mouseX < 0 || mouseY < 0) return;
+    long now = android.os.SystemClock.uptimeMillis();
+    MotionEvent.PointerProperties[] props = {new MotionEvent.PointerProperties()};
+    props[0].id = 0; props[0].toolType = MotionEvent.TOOL_TYPE_MOUSE;
+    MotionEvent.PointerCoords[] coords = {new MotionEvent.PointerCoords()};
+    coords[0].x = mouseX; coords[0].y = mouseY;
+    MotionEvent event = MotionEvent.obtain(now, now, action, 1, props, coords, 0,
+        buttonState, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0);
+    try {
+      MotionEventHidden hidden = Refine.unsafeCast(event);
+      hidden.setDisplayId(targetDisplayId);
+      if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) hidden.setActionButton(actionButton);
+      inputManager.injectInputEvent(event, 0);
+    } catch (Throwable t) { State.log("trackpad mouse injection failed: " + t.getMessage()); }
+    finally { event.recycle(); }
   }
 
   private void addGamepadRow(LinearLayout panel, String[] keys) {
@@ -499,6 +558,7 @@ public class FloatingKeyboardService extends Service {
       keyboardView = null;
     }
     rootInputExecutor.shutdownNow();
+    inputManager = null;
     super.onDestroy();
   }
 
