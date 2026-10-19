@@ -58,7 +58,9 @@ public class FloatingKeyboardService extends Service {
     keyboardPrefs = getSharedPreferences("floating_keyboard", MODE_PRIVATE);
     widthPercent = keyboardPrefs.getInt("width_percent", 96);
     keyHeightDp = keyboardPrefs.getInt("key_height_dp", 42);
-    verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", 12);
+    int screenHeightDp = Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density);
+    int defaultY = Math.max(12, screenHeightDp - (keyHeightDp * 4) - 60 - 12);
+    verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", defaultY);
   }
 
   @Override
@@ -162,7 +164,7 @@ public class FloatingKeyboardService extends Service {
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
-    params.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+    params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
     params.y = dp(verticalOffsetDp);
     keyboardView = panel;
     try {
@@ -178,7 +180,7 @@ public class FloatingKeyboardService extends Service {
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(20), dp(8), dp(20), dp(4));
     TextView hint = new TextView(this);
-    hint.setText("Atur lebar, tinggi tombol, dan posisi keyboard dari tepi atas layar.");
+    hint.setText("Atur lebar, tinggi tombol, dan posisi keyboard dari tepi atas layar. Geser judul untuk memindahkan keyboard.");
     content.addView(hint);
     SeekBar width = new SeekBar(this); width.setMax(40); width.setProgress(widthPercent - 60);
     TextView widthLabel = new TextView(this); widthLabel.setText("Lebar: " + widthPercent + "%");
