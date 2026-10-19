@@ -106,13 +106,13 @@ public class FloatingKeyboardService extends Service {
     LinearLayout panel = new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
     panel.setPadding(dp(8), dp(8), dp(8), dp(8));
-    panel.setBackgroundColor(Color.rgb(29, 34, 45));
+    panel.setBackgroundColor(Color.rgb(25, 28, 36));
 
     LinearLayout titleRow = new LinearLayout(this);
     titleRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView title = new TextView(this);
     title.setText("Keyboard · Layar " + targetDisplayId + "  ↕ geser");
-    title.setTextColor(Color.WHITE);
+    title.setTextColor(Color.rgb(232, 236, 245));
     title.setTextSize(13);
     titleRow.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1));
     title.setOnTouchListener((v, event) -> {
@@ -138,11 +138,13 @@ public class FloatingKeyboardService extends Service {
     customize.setText(settingsVisible ? "Tutup" : "Atur");
     customize.setAllCaps(false);
     customize.setTextSize(11);
+    styleButton(customize, true);
     customize.setContentDescription("Atur tata letak dan ukuran keyboard");
     customize.setOnClickListener(v -> { settingsVisible = !settingsVisible; rebuildKeyboard(); });
     titleRow.addView(customize, new LinearLayout.LayoutParams(dp(56), dp(36)));
     Button close = new Button(this);
     close.setText("×");
+    styleButton(close, false);
     close.setOnClickListener(v -> stopSelf());
     titleRow.addView(close, new LinearLayout.LayoutParams(dp(48), dp(36)));
     panel.addView(titleRow);
@@ -183,7 +185,7 @@ public class FloatingKeyboardService extends Service {
   private void addSettingsPanel(LinearLayout panel) {
     TextView hint = new TextView(this);
     hint.setText("Pilih layout. Geser judul untuk memindahkan keyboard.");
-    hint.setTextColor(Color.WHITE);
+    hint.setTextColor(Color.rgb(206, 213, 226));
     hint.setPadding(dp(4), dp(4), dp(4), dp(8));
     panel.addView(hint);
     LinearLayout layouts = new LinearLayout(this);
@@ -194,6 +196,7 @@ public class FloatingKeyboardService extends Service {
       choice.setText((keyboardLayout == i ? "✓ " : "") + names[i]);
       choice.setAllCaps(false);
       choice.setTextSize(10);
+      styleButton(choice, keyboardLayout == i);
       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(44), 1f);
       lp.setMargins(dp(2), dp(2), dp(2), dp(2));
       layouts.addView(choice, lp);
@@ -225,6 +228,7 @@ public class FloatingKeyboardService extends Service {
     }, " dp");
     Button apply = new Button(this);
     apply.setText("Terapkan ukuran");
+    styleButton(apply, true);
     apply.setAllCaps(false);
     apply.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); });
     panel.addView(apply, new LinearLayout.LayoutParams(-1, dp(42)));
@@ -236,7 +240,7 @@ public class FloatingKeyboardService extends Service {
       int max, SettingValueListener listener, String unit) {
     TextView label = new TextView(this);
     label.setText(title + ": " + current + unit);
-    label.setTextColor(Color.WHITE);
+    label.setTextColor(Color.rgb(206, 213, 226));
     panel.addView(label);
     SeekBar seek = new SeekBar(this);
     seek.setMax(max - min);
@@ -352,6 +356,7 @@ public class FloatingKeyboardService extends Service {
     Button button = new Button(this);
     button.setText(label);
     button.setTextSize(12);
+    styleButton(button, false);
     button.setAllCaps(false);
     button.setPadding(0, 0, 0, 0);
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(keyHeightDp), weight);
@@ -397,6 +402,15 @@ public class FloatingKeyboardService extends Service {
     } catch (Throwable e) {
       State.log("floating keyboard input failed: " + e.getMessage());
     }
+  }
+
+  private void styleButton(Button button, boolean accent) {
+    button.setAllCaps(false);
+    button.setTextColor(accent ? Color.rgb(24, 25, 36) : Color.rgb(235, 238, 246));
+    button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+        accent ? Color.rgb(190, 178, 255) : Color.rgb(53, 58, 72)));
+    button.setStateListAnimator(null);
+    button.setMinHeight(dp(38));
   }
 
   private int dp(int value) {
