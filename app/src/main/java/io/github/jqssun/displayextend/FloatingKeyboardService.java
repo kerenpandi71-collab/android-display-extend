@@ -82,6 +82,17 @@ public class FloatingKeyboardService extends Service {
   private final java.util.ArrayDeque<String> gamepadDiagnosticLines = new java.util.ArrayDeque<>();
   private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
   private long lastGamepadMoveLogAt = 0L;
+  private TextView gamepadCoordinateIndicator;
+
+  private void updateGamepadCoordinateIndicator(String role, float x, float y) {
+    if (gamepadCoordinateIndicator == null) return;
+    android.util.DisplayMetrics dm = gameTouchController.metrics();
+    float nx = dm.widthPixels > 0 ? x / dm.widthPixels : 0f;
+    float ny = dm.heightPixels > 0 ? y / dm.heightPixels : 0f;
+    gamepadCoordinateIndicator.setText(role.toUpperCase(java.util.Locale.ROOT)
+        + "  X:" + Math.round(x) + " Y:" + Math.round(y)
+        + "  ·  " + Math.round(nx * 100) + "% / " + Math.round(ny * 100) + "%");
+  }
 
   private synchronized void recordGamepadDiagnostic(String category, String message) {
     String line = new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.ROOT)
@@ -684,60 +695,70 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
+    // Keep mapping and diagnostics at the top so they remain reachable on short screens.
+    Button customize = new Button(this);
+    customize.setText("ATUR POSISI / MAPPING");
+    customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
+    customize.setOnClickListener(v -> showGamepadCustomization());
+    panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(34)));
+
+    Button autoMap = new Button(this);
+    autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
+    autoMap.setAllCaps(false); autoMap.setTextSize(10); styleButton(autoMap, true);
+    autoMap.setOnClickListener(v -> showAutoMapMlbbDialog());
+    panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button diagnostics = new Button(this);
+    diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
+    diagnostics.setAllCaps(false); diagnostics.setTextSize(10); styleButton(diagnostics, true);
+    diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
+    panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    TextView coordinateTitle = new TextView(this);
+    coordinateTitle.setText("KOORDINAT TARGET · LIVE");
+    coordinateTitle.setTextColor(Color.rgb(174, 207, 245));
+    coordinateTitle.setTextSize(9);
+    coordinateTitle.setGravity(Gravity.CENTER);
+    panel.addView(coordinateTitle, new LinearLayout.LayoutParams(-1, dp(20)));
+    gamepadCoordinateIndicator = new TextView(this);
+    gamepadCoordinateIndicator.setText("Sentuh tombol untuk melihat X/Y");
+    gamepadCoordinateIndicator.setTextColor(Color.rgb(225, 241, 255));
+    gamepadCoordinateIndicator.setTextSize(10);
+    gamepadCoordinateIndicator.setGravity(Gravity.CENTER);
+    gamepadCoordinateIndicator.setSingleLine(true);
+    gamepadCoordinateIndicator.setPadding(dp(3), 0, dp(3), 0);
+    panel.addView(gamepadCoordinateIndicator, new LinearLayout.LayoutParams(-1, dp(24)));
+
     TextView note = new TextView(this);
     note.setText("SENTUHAN MOBA · TAP / TAHAN / BIDIK");
     note.setTextColor(Color.rgb(174, 207, 245));
     note.setTextSize(9);
     note.setGravity(Gravity.CENTER);
-    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(28)));
-
-    LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER_VERTICAL);
-    addTouchGameButton(row1, "SERANG", 1.25f, "attack", false);
-    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(48)));
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(22)));
 
     TextView aimTitle = new TextView(this);
     aimTitle.setText("ANALOG BIDIK SKILL");
     aimTitle.setTextColor(Color.rgb(174, 207, 245));
     aimTitle.setTextSize(9);
     aimTitle.setGravity(Gravity.CENTER);
-    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(22)));
+    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(20)));
 
-    // Three independent mini-sticks mirror the game's skill cluster. Each keeps
-    // its own contact down while dragging, like a virtual analog stick.
     LinearLayout skillSticks = new LinearLayout(this);
     skillSticks.setGravity(Gravity.CENTER);
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(82)));
+    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(76)));
 
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
     addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
     addTouchGameButton(row3, "SPELL", 1f, "spell", true);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(58)));
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(54)));
 
     LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
     addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
-    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(46)));
-
-    Button customize = new Button(this);
-    customize.setText("ATUR POSISI / MAPPING");
-    customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
-    customize.setOnClickListener(v -> showGamepadCustomization());
-    panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(38)));
-
-    Button autoMap = new Button(this);
-    autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
-    autoMap.setAllCaps(false); autoMap.setTextSize(10); styleButton(autoMap, true);
-    autoMap.setOnClickListener(v -> showAutoMapMlbbDialog());
-    panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(34)));
-
-    Button diagnostics = new Button(this);
-    diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
-    diagnostics.setAllCaps(false); diagnostics.setTextSize(10); styleButton(diagnostics, true);
-    diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
-    panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(38)));
+    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(40)));
 
     Button back = new Button(this);
     back.setText("Kembali ke keyboard + trackpad");
@@ -747,14 +768,25 @@ public class FloatingKeyboardService extends Service {
       gamepadMode = false;
       rebuildKeyboard();
     });
-    panel.addView(back, new LinearLayout.LayoutParams(-1, dp(42)));
+    panel.addView(back, new LinearLayout.LayoutParams(-1, dp(34)));
+
+    // Flexible space pins the primary attack control to the bottom-center.
+    View spacer = new View(this);
+    panel.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+    LinearLayout attackRow = new LinearLayout(this);
+    attackRow.setGravity(Gravity.CENTER);
+    addTouchGameButton(attackRow, "SERANG", 1f, "attack", false);
+    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(46));
+    attackLp.setMargins(dp(4), dp(2), dp(4), dp(4));
+    panel.addView(attackRow, attackLp);
 
     TextView footnote = new TextView(this);
-    footnote.setText("Tata letak sentuh standar MOBA. Posisi HUD tiap game mungkin berbeda.");
+    footnote.setText("Angka X/Y mengikuti koordinat display target.");
     footnote.setTextColor(Color.rgb(174, 207, 245));
     footnote.setTextSize(8);
     footnote.setGravity(Gravity.CENTER);
-    panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(32)));
+    panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(18)));
   }
 
   private void addSkillAimStick(LinearLayout row, String label, String role) {
@@ -954,6 +986,7 @@ public class FloatingKeyboardService extends Service {
           float[] down = gameTouchController.pointFor(mappedRole);
           aimOrigin[0] = down[0];
           aimOrigin[1] = down[1];
+          updateGamepadCoordinateIndicator(mappedRole, down[0], down[1]);
           boolean accepted = gameTouchController.press(mappedRole, down);
           recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
@@ -982,6 +1015,7 @@ public class FloatingKeyboardService extends Service {
                 + Math.round(dragX) + "," + Math.round(dragY) + "), normalized=("
                 + String.format(java.util.Locale.ROOT, "%.2f", nx) + ","
                 + String.format(java.util.Locale.ROOT, "%.2f", ny) + ")");
+            updateGamepadCoordinateIndicator(mappedRole, targetX, targetY);
             gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
