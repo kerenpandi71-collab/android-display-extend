@@ -404,9 +404,17 @@ public class FloatingKeyboardService extends Service {
     lp.setMargins(dp(3), dp(3), dp(3), dp(3));
     row.addView(b, lp);
     b.setOnTouchListener((v, e) -> {
-      if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { sendKey(keyCode, false); return true; }
-      if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-        sendKey(keyCode, false); return true;
+      int action = e.getActionMasked();
+      if (rootMode) {
+        // Root input command emits a complete tap; send only once on release.
+        if (action == MotionEvent.ACTION_UP) sendKey(keyCode, false);
+        return true;
+      }
+      if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        long now = android.os.SystemClock.uptimeMillis();
+        int keyAction = action == MotionEvent.ACTION_DOWN ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP;
+        inject(new KeyEvent(now, now, keyAction, keyCode, 0));
+        return true;
       }
       return true;
     });
