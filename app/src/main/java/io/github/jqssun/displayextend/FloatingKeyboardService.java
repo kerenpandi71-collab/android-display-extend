@@ -626,16 +626,16 @@ public class FloatingKeyboardService extends Service {
           }
           return true;
         case MotionEvent.ACTION_UP: {
-          boolean accepted = gameTouchController.release(role);
+          boolean releaseAccepted = gameTouchController.release(role);
           recordGamepadDiagnostic("BUTTON_UP", "label=" + label + ", role=" + role
-              + ", accepted=" + accepted + ", activeAfter=" + gameTouchController.isActive(role));
+              + ", accepted=" + releaseAccepted + ", activeAfter=" + gameTouchController.isActive(role));
           v.setPressed(false);
           return true;
         }
         case MotionEvent.ACTION_CANCEL: {
-          boolean accepted = gameTouchController.release(role);
+          boolean cancelAccepted = gameTouchController.release(role);
           recordGamepadDiagnostic("BUTTON_CANCEL", "label=" + label + ", role=" + role
-              + ", accepted=" + accepted);
+              + ", accepted=" + cancelAccepted);
           v.setPressed(false);
           return true;
         }
