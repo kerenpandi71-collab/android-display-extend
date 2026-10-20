@@ -79,6 +79,81 @@ public class FloatingKeyboardService extends Service {
   private boolean symbolsMode = false;
   private boolean gamepadMode = false;
   private final GameTouchController gameTouchController = new GameTouchController();
+  private final java.util.ArrayDeque<String> gamepadDiagnosticLines = new java.util.ArrayDeque<>();
+  private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
+  private long lastGamepadMoveLogAt = 0L;
+  private long lastGamepadMoveIntervalMs = 0L;
+
+  private synchronized void recordGamepadDiagnostic(String category, String message) {
+    String line = new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.ROOT)
+        .format(new java.util.Date()) + " [" + category + "] " + message;
+    if (gamepadDiagnosticLines.size() >= MAX_GAMEPAD_DIAGNOSTIC_LINES) {
+      gamepadDiagnosticLines.removeFirst();
+    }
+    gamepadDiagnosticLines.addLast(line);
+  }
+
+  private synchronized String buildGamepadDiagnosticReport() {
+    StringBuilder report = new StringBuilder();
+    report.append("Android Display Extend — Gamepad Diagnostics\\n")
+        .append("Display target: ").append(targetDisplayId).append('\\n')
+        .append("Mode: ").append(gamepadMode ? "GAMEPAD" : "KEYBOARD/TRACKPAD").append('\\n')
+        .append("Root input: ").append(rootMode).append('\\n')
+        .append("Log lines retained: ").append(gamepadDiagnosticLines.size()).append('/')
+        .append(MAX_GAMEPAD_DIAGNOSTIC_LINES).append('\\n')
+        .append("Note: accepted=true means Android accepted injection, not that the game registered it.\\n")
+        .append("--------------------------------------------------\\n");
+    synchronized (this) {
+      for (String line : gamepadDiagnosticLines) report.append(line).append('\\n');
+    }
+    return report.toString();
+  }
+
+  private void showGamepadDiagnostics() {
+    recordGamepadDiagnostic("SESSION", "Diagnostic viewer opened; display=" + targetDisplayId);
+    TextView output = new TextView(this);
+    output.setText(buildGamepadDiagnosticReport());
+    output.setTextColor(Color.rgb(225, 235, 255));
+    output.setTextSize(11);
+    output.setTextIsSelectable(true);
+    output.setPadding(dp(12), dp(8), dp(12), dp(8));
+    android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+    scroll.setFillViewport(true);
+    scroll.addView(output);
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Log diagnosis gamepad")
+        .setView(scroll)
+        .setPositiveButton("Salin log", (d, which) -> {
+          String report = buildGamepadDiagnosticReport();
+          android.content.ClipboardManager clipboard =
+              (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+          if (clipboard != null) {
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Gamepad diagnostics", report));
+            Toast.makeText(this, "Log disalin. Tempelkan ke chat untuk dianalisis.", Toast.LENGTH_LONG).show();
+          }
+        })
+        .setNeutralButton("Bagikan", (d, which) -> {
+          android.content.Intent share = new android.content.Intent(android.content.Intent.ACTION_SEND);
+          share.setType("text/plain");
+          share.putExtra(android.content.Intent.EXTRA_SUBJECT, "Android Display Extend gamepad diagnostics");
+          share.putExtra(android.content.Intent.EXTRA_TEXT, buildGamepadDiagnosticReport());
+          share.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+          try {
+            startActivity(android.content.Intent.createChooser(share, "Bagikan log diagnosis")
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+          } catch (Throwable t) {
+            State.log("gamepad diagnostic share failed: " + t.getMessage());
+            Toast.makeText(this, "Gagal membuka menu berbagi log.", Toast.LENGTH_SHORT).show();
+          }
+        })
+        .setNegativeButton("Tutup", null)
+        .create();
+    dialog.getWindow();
+    dialog.show();
+    dialog.getWindow().setLayout(
+        Math.max(dp(260), (int) (getResources().getDisplayMetrics().widthPixels * 0.88f)),
+        Math.max(dp(260), (int) (getResources().getDisplayMetrics().heightPixels * 0.72f)));
+  }
 
   @Override
   public void onCreate() {
@@ -470,6 +545,12 @@ public class FloatingKeyboardService extends Service {
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
     panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(46)));
 
+    Button diagnostics = new Button(this);
+    diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
+    diagnostics.setAllCaps(false); diagnostics.setTextSize(10); styleButton(diagnostics, true);
+    diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
+    panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(38)));
+
     Button back = new Button(this);
     back.setText("Kembali ke keyboard + trackpad");
     back.setAllCaps(false); back.setTextSize(10); styleButton(back, false);
@@ -506,6 +587,9 @@ public class FloatingKeyboardService extends Service {
           start[1] = e.getY();
           float[] down = gameTouchController.pointFor(role);
           boolean accepted = gameTouchController.press(role, down);
+          recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + role
+              + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
+              + Math.round(down[1]) + "), display=" + targetDisplayId);
           State.log("gamepad button down: role=" + role + ", accepted=" + accepted
               + ", target=(" + Math.round(down[0]) + "," + Math.round(down[1]) + ")");
           v.setPressed(true);
@@ -521,14 +605,20 @@ public class FloatingKeyboardService extends Service {
             gameTouchController.moveSmooth(role, targetX, targetY);
           }
           return true;
-        case MotionEvent.ACTION_UP:
-          gameTouchController.release(role);
+        case MotionEvent.ACTION_UP: {
+          boolean accepted = gameTouchController.release(role);
+          recordGamepadDiagnostic("BUTTON_UP", "label=" + label + ", role=" + role
+              + ", accepted=" + accepted + ", activeAfter=" + gameTouchController.isActive(role));
           v.setPressed(false);
           return true;
-        case MotionEvent.ACTION_CANCEL:
-          gameTouchController.release(role);
+        }
+        case MotionEvent.ACTION_CANCEL: {
+          boolean accepted = gameTouchController.release(role);
+          recordGamepadDiagnostic("BUTTON_CANCEL", "label=" + label + ", role=" + role
+              + ", accepted=" + accepted);
           v.setPressed(false);
           return true;
+        }
       }
       return true;
     });
@@ -625,6 +715,9 @@ public class FloatingKeyboardService extends Service {
       }
       contacts.put(role, new GameContact(pointerIdFor(role), point[0], point[1]));
       boolean accepted = injectContacts(action);
+      recordGamepadDiagnostic("CONTACT_DOWN", "role=" + role + ", pointerId="
+          + pointerIdFor(role) + ", accepted=" + accepted + ", x=" + Math.round(point[0])
+          + ", y=" + Math.round(point[1]) + ", pointerCount=" + contacts.size());
       if (!accepted) {
         contacts.remove(role);
         if (contacts.isEmpty()) downTime = 0L;
@@ -654,9 +747,19 @@ public class FloatingKeyboardService extends Service {
       float dx = targetX - contact.x;
       float dy = targetY - contact.y;
       if (Math.hypot(dx, dy) < 0.75f) return true;
+      long now = android.os.SystemClock.uptimeMillis();
+      long interval = lastGamepadMoveLogAt == 0L ? 0L : now - lastGamepadMoveLogAt;
+      lastGamepadMoveIntervalMs = interval;
+      lastGamepadMoveLogAt = now;
+      long started = android.os.SystemClock.elapsedRealtimeNanos();
       boolean accepted = move(role, targetX, targetY);
-      State.log("gamepad aim: role=" + role + ", dx=" + Math.round(dx)
-          + ", dy=" + Math.round(dy) + ", accepted=" + accepted);
+      long costMs = (android.os.SystemClock.elapsedRealtimeNanos() - started) / 1000000L;
+      recordGamepadDiagnostic("AIM_MOVE", "role=" + role + ", dx=" + Math.round(dx)
+          + ", dy=" + Math.round(dy) + ", intervalMs=" + interval + ", injectCostMs=" + costMs
+          + ", accepted=" + accepted + ", target=(" + Math.round(contact.x) + ","
+          + Math.round(contact.y) + "), activePointers=" + contacts.size());
+      if (!accepted) State.log("gamepad aim injection rejected: role=" + role
+          + ", dx=" + Math.round(dx) + ", dy=" + Math.round(dy));
       return accepted;
     }
 
@@ -670,6 +773,8 @@ public class FloatingKeyboardService extends Service {
       int action = contacts.size() == 1 ? MotionEvent.ACTION_UP
           : MotionEvent.ACTION_POINTER_UP | (index << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
       boolean accepted = injectContacts(action);
+      recordGamepadDiagnostic("CONTACT_UP", "role=" + role + ", accepted=" + accepted
+          + ", pointerCountBeforeRemove=" + contacts.size());
       contacts.remove(role);
       if (contacts.isEmpty()) downTime = 0L;
       return accepted;
@@ -708,11 +813,17 @@ public class FloatingKeyboardService extends Service {
       try {
         MotionEventHidden hidden = Refine.unsafeCast(event);
         hidden.setDisplayId(targetDisplayId);
+        long injectStart = android.os.SystemClock.elapsedRealtimeNanos();
         boolean accepted = manager.injectInputEvent(event, 0);
-        State.log("gamepad touch: display=" + targetDisplayId + ", action=" + action
-            + ", pointers=" + count + ", accepted=" + accepted);
+        long injectCostMs = (android.os.SystemClock.elapsedRealtimeNanos() - injectStart) / 1000000L;
+        recordGamepadDiagnostic("INJECT", "display=" + targetDisplayId + ", action=" + action
+            + ", pointers=" + count + ", injectCostMs=" + injectCostMs + ", accepted=" + accepted);
+        if (!accepted) State.log("gamepad touch injection rejected: display=" + targetDisplayId
+            + ", action=" + action + ", pointers=" + count);
         return accepted;
       } catch (Throwable e) {
+        recordGamepadDiagnostic("INJECT_ERROR", "display=" + targetDisplayId + ", action="
+            + action + ", error=" + e.getClass().getSimpleName() + ": " + e.getMessage());
         State.log("gamepad touch injection failed: " + e.getMessage());
         return false;
       } finally {
