@@ -277,12 +277,9 @@ public class FloatingKeyboardService extends Service {
     left.addView(titleRow);
 
     if (settingsVisible) {
-      addSettingsPanel(left);
+      addLandscapeSettingsPanel(left);
     } else {
-      int previousHeight = keyHeightDp;
-      keyHeightDp = Math.min(keyHeightDp, 32);
-      addKeyboardLayout(left);
-      keyHeightDp = previousHeight;
+      addLandscapeLaptopKeyboard(left);
       addLandscapeResizeGrip(left);
     }
     keyboardView = left;
@@ -333,6 +330,137 @@ public class FloatingKeyboardService extends Service {
       keyboardView = null;
       landscapeTrackpadView = null;
       stopSelf();
+    }
+  }
+
+  private void addLandscapeSettingsPanel(LinearLayout panel) {
+    TextView hint = new TextView(this);
+    hint.setText("Sesuaikan panel agar nyaman untuk layar virtual 900×900.");
+    hint.setTextColor(Color.rgb(191, 213, 239));
+    hint.setTextSize(11);
+    hint.setPadding(dp(4), dp(4), dp(4), dp(8));
+    panel.addView(hint);
+    addSettingSlider(panel, "Lebar keyboard", widthPercent, 35, 100, value -> {
+      widthPercent = value;
+      keyboardPrefs.edit().putInt("width_percent", value).apply();
+      updateOverlayWidth();
+    }, "%");
+    addSettingSlider(panel, "Tinggi tombol", keyHeightDp, 34, 48, value -> {
+      keyHeightDp = value;
+      keyboardPrefs.edit().putInt("key_height_dp", value).apply();
+      rebuildKeyboard();
+    }, " dp");
+    Button apply = new Button(this);
+    apply.setText("Selesai");
+    apply.setAllCaps(false);
+    styleButton(apply, true);
+    apply.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); });
+    panel.addView(apply, new LinearLayout.LayoutParams(-1, dp(38)));
+  }
+
+  private void addLandscapeLaptopKeyboard(LinearLayout panel) {
+    int oldHeight = keyHeightDp;
+    keyHeightDp = Math.max(34, Math.min(48, oldHeight));
+    // Suggestion strip styled like a laptop/IME toolbar. Suggestions are
+    // placeholders until an actual IME is attached; key input remains real.
+    LinearLayout suggestions = new LinearLayout(this);
+    suggestions.setGravity(Gravity.CENTER_VERTICAL);
+    suggestions.setPadding(dp(3), 0, dp(3), 0);
+    String[] suggestionsText = {"⌨", "Halo", "Bisa", "Oke", "🎙"};
+    for (int i = 0; i < suggestionsText.length; i++) {
+      final String text = suggestionsText[i];
+      TextView item = new TextView(this);
+      item.setText(text);
+      item.setTextColor(Color.rgb(174, 207, 245));
+      item.setTextSize(10);
+      item.setGravity(Gravity.CENTER);
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(28), i == 0 || i == 4 ? 0.8f : 1f);
+      lp.setMargins(dp(1), dp(1), dp(1), dp(1));
+      suggestions.addView(item, lp);
+      if (i == 1 || i == 2 || i == 3) item.setOnClickListener(v -> sendText(text.toLowerCase(java.util.Locale.ROOT)));
+    }
+    panel.addView(suggestions);
+
+    if (symbolsMode) {
+      addLandscapeKeyRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0","-","="});
+      addLandscapeKeyRow(panel, new String[] {"@","#","$","%","&","*","(",")","/","\\","⌫"});
+      addLandscapeKeyRow(panel, new String[] {"~","'",";",":","!","?",".",",","[","]","ABC"});
+    } else {
+      addLandscapeKeyRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0","-","=","⌫"});
+      addLandscapeKeyRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p","[","]"});
+      addLandscapeKeyRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l",";","'","Enter"});
+      addLandscapeKeyRow(panel, new String[] {"Shift","z","x","c","v","b","n","m",",",".","/","Shift"});
+    }
+
+    LinearLayout modifiers = new LinearLayout(this);
+    modifiers.setGravity(Gravity.CENTER);
+    addLaptopKey(modifiers, "Ctrl", 1f, () -> toggleModifier("Ctrl"));
+    addLaptopKey(modifiers, "⊞", 0.8f, () -> sendKey(KeyEvent.KEYCODE_META_LEFT, false));
+    addLaptopKey(modifiers, "Alt", 1f, () -> toggleModifier("Alt"));
+    addLaptopKey(modifiers, "Space", 3.2f, () -> sendText(" "));
+    addLaptopKey(modifiers, "AltGr", 1f, () -> sendKey(KeyEvent.KEYCODE_ALT_RIGHT, false));
+    addLaptopKey(modifiers, "Enter", 1.35f, () -> sendKey(KeyEvent.KEYCODE_ENTER, false));
+    panel.addView(modifiers);
+
+    LinearLayout bottom = new LinearLayout(this);
+    bottom.setGravity(Gravity.CENTER);
+    addLaptopKey(bottom, symbolsMode ? "ABC" : "?123", 1.3f, () -> { symbolsMode = !symbolsMode; rebuildKeyboard(); });
+    addLaptopKey(bottom, "☺", 0.8f, () -> sendText("😊"));
+    addLaptopKey(bottom, ",", 0.8f, () -> sendText(","));
+    addLaptopKey(bottom, ".", 0.8f, () -> sendText("."));
+    addLaptopKey(bottom, "←", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT, false));
+    addLaptopKey(bottom, "↑", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_UP, false));
+    addLaptopKey(bottom, "↓", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_DOWN, false));
+    addLaptopKey(bottom, "→", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT, false));
+    panel.addView(bottom);
+    keyHeightDp = oldHeight;
+  }
+
+  private void addLandscapeKeyRow(LinearLayout panel, String[] keys) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    for (String key : keys) {
+      float weight = 1f;
+      if ("Tab".equals(key) || "Caps".equals(key)) weight = 1.35f;
+      if ("Shift".equals(key)) weight = 1.6f;
+      if ("Enter".equals(key) || "⌫".equals(key)) weight = 1.45f;
+      addLaptopKey(row, key, weight, () -> {
+        switch (key) {
+          case "⌫": sendKey(KeyEvent.KEYCODE_DEL, false); break;
+          case "Tab": sendKey(KeyEvent.KEYCODE_TAB, false); break;
+          case "Enter": sendKey(KeyEvent.KEYCODE_ENTER, false); break;
+          case "Shift": shiftEnabled = !shiftEnabled; break;
+          case "Caps": capsEnabled = !capsEnabled; break;
+          case "ABC": symbolsMode = false; rebuildKeyboard(); break;
+          default: sendText(key);
+        }
+      });
+    }
+    panel.addView(row);
+  }
+
+  private void addLaptopKey(LinearLayout row, String label, float weight, Runnable action) {
+    Button button = new Button(this);
+    button.setText(label);
+    button.setAllCaps(false);
+    button.setTextSize(label.length() > 4 ? 9 : 11);
+    button.setMinWidth(0);
+    button.setMinimumWidth(0);
+    button.setPadding(dp(1), 0, dp(1), 0);
+    styleButton(button, "Enter".equals(label) || "?123".equals(label));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(keyHeightDp), weight);
+    lp.setMargins(dp(1), dp(1), dp(1), dp(1));
+    row.addView(button, lp);
+    button.setOnClickListener(v -> action.run());
+  }
+
+  private void toggleModifier(String key) {
+    if ("Ctrl".equals(key)) {
+      ctrlEnabled = !ctrlEnabled;
+      Toast.makeText(this, ctrlEnabled ? "Ctrl aktif" : "Ctrl nonaktif", Toast.LENGTH_SHORT).show();
+    } else {
+      altEnabled = !altEnabled;
+      Toast.makeText(this, altEnabled ? "Alt aktif" : "Alt nonaktif", Toast.LENGTH_SHORT).show();
     }
   }
 
