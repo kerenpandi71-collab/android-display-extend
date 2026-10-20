@@ -563,16 +563,19 @@ public class FloatingKeyboardService extends Service {
       android.util.DisplayMetrics dm = metrics();
       float x;
       float y;
+      // Coordinates tuned against the square 900x900 virtual-display HUD
+      // visible in the user's screenshot. Keep these normalized to support
+      // other virtual-display resolutions.
       switch (role) {
-        case "move":     x = 0.16f; y = 0.78f; break;
-        case "attack":   x = 0.91f; y = 0.82f; break;
-        case "skill1":   x = 0.78f; y = 0.79f; break;
-        case "skill2":   x = 0.83f; y = 0.68f; break;
-        case "skill3":   x = 0.90f; y = 0.63f; break;
-        case "ultimate": x = 0.96f; y = 0.70f; break;
-        case "spell":    x = 0.70f; y = 0.88f; break;
-        case "recall":   x = 0.62f; y = 0.88f; break;
-        default:         x = 0.90f; y = 0.82f; break;
+        case "move":     x = 0.13f; y = 0.87f; break;
+        case "attack":   x = 0.94f; y = 0.87f; break;
+        case "skill1":   x = 0.86f; y = 0.78f; break;
+        case "skill2":   x = 0.82f; y = 0.86f; break;
+        case "skill3":   x = 0.91f; y = 0.77f; break;
+        case "ultimate": x = 0.96f; y = 0.81f; break;
+        case "spell":    x = 0.71f; y = 0.91f; break;
+        case "recall":   x = 0.61f; y = 0.91f; break;
+        default:         x = 0.94f; y = 0.87f; break;
       }
       return new float[] {
         Math.max(0f, Math.min(dm.widthPixels - 1f, dm.widthPixels * x)),
@@ -582,7 +585,9 @@ public class FloatingKeyboardService extends Service {
 
     float getMoveRadius() {
       android.util.DisplayMetrics dm = metrics();
-      return Math.max(24f, Math.min(dm.widthPixels, dm.heightPixels) * 0.105f);
+      // A little more travel makes turning easier without losing the
+      // game's virtual joystick center; normalized to the target display.
+      return Math.max(30f, Math.min(dm.widthPixels, dm.heightPixels) * 0.14f);
     }
 
     private int pointerIdFor(String role) {
@@ -610,7 +615,12 @@ public class FloatingKeyboardService extends Service {
         action = MotionEvent.ACTION_POINTER_DOWN | (contacts.size() << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
       }
       contacts.put(role, new GameContact(pointerIdFor(role), point[0], point[1]));
-      return injectContacts(action);
+      boolean accepted = injectContacts(action);
+      if (!accepted) {
+        contacts.remove(role);
+        if (contacts.isEmpty()) downTime = 0L;
+      }
+      return accepted;
     }
 
     synchronized boolean move(String role, float x, float y) {
@@ -671,7 +681,8 @@ public class FloatingKeyboardService extends Service {
         MotionEventHidden hidden = Refine.unsafeCast(event);
         hidden.setDisplayId(targetDisplayId);
         boolean accepted = manager.injectInputEvent(event, 0);
-        if (!accepted) State.log("gamepad touch rejected: display=" + targetDisplayId + ", action=" + action + ", pointers=" + count);
+        State.log("gamepad touch: display=" + targetDisplayId + ", action=" + action
+            + ", pointers=" + count + ", accepted=" + accepted);
         return accepted;
       } catch (Throwable e) {
         State.log("gamepad touch injection failed: " + e.getMessage());
