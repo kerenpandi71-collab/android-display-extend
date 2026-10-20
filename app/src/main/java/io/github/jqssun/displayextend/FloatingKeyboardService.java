@@ -77,6 +77,7 @@ public class FloatingKeyboardService extends Service {
   private boolean ctrlEnabled = false;
   private boolean altEnabled = false;
   private boolean symbolsMode = false;
+  private boolean gamepadMode = false;
 
   @Override
   public void onCreate() {
@@ -261,6 +262,14 @@ public class FloatingKeyboardService extends Service {
       }
       return true;
     });
+    Button modeButton = new Button(this);
+    modeButton.setText(gamepadMode ? "⌨" : "🎮");
+    modeButton.setAllCaps(false);
+    modeButton.setTextSize(10);
+    styleButton(modeButton, gamepadMode);
+    modeButton.setContentDescription("Ganti mode keyboard atau gamepad");
+    modeButton.setOnClickListener(v -> { gamepadMode = !gamepadMode; settingsVisible = false; rebuildKeyboard(); });
+    titleRow.addView(modeButton, new LinearLayout.LayoutParams(dp(38), dp(32)));
     Button customize = new Button(this);
     customize.setText(settingsVisible ? "Tutup" : "⚙");
     customize.setAllCaps(false);
@@ -279,7 +288,7 @@ public class FloatingKeyboardService extends Service {
     if (settingsVisible) {
       addLandscapeSettingsPanel(left);
     } else {
-      addLandscapeLaptopKeyboard(left);
+      if (gamepadMode) addLandscapeGamepadLeft(left); else addLandscapeLaptopKeyboard(left);
       addLandscapeResizeGrip(left);
     }
     keyboardView = left;
@@ -302,13 +311,13 @@ public class FloatingKeyboardService extends Service {
     right.setPadding(dp(5), dp(5), dp(5), dp(5));
     right.setBackground(createPanelBackground());
     TextView trackpadTitle = new TextView(this);
-    trackpadTitle.setText("🖱  Trackpad");
+    trackpadTitle.setText(gamepadMode ? "🎮  Gamepad kanan" : "🖱  Trackpad");
     trackpadTitle.setTextColor(Color.rgb(225, 235, 255));
     trackpadTitle.setTextSize(12);
     trackpadTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     trackpadTitle.setGravity(Gravity.CENTER_VERTICAL);
     right.addView(trackpadTitle, new LinearLayout.LayoutParams(-1, dp(32)));
-    addIntegratedTrackpad(right);
+    if (gamepadMode) addLandscapeGamepadRight(right); else addIntegratedTrackpad(right);
     landscapeTrackpadView = right;
     landscapeTrackpadParams = new WindowManager.LayoutParams(
         Math.max(dp(170), Math.round(screenWidth * 0.25f)),
@@ -333,6 +342,76 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
+  // Gamepad layout uses accessible on-screen buttons mapped to Android key events.
+  // It is a keyboard-event controller, not a Bluetooth/HID game controller.
+  private void addLandscapeGamepadLeft(LinearLayout panel) {
+    TextView note = new TextView(this);
+    note.setText("ARAH / GERAK");
+    note.setTextColor(Color.rgb(174, 207, 245));
+    note.setTextSize(10);
+    note.setGravity(Gravity.CENTER);
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(24)));
+    LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER);
+    addGameButton(top, "▲", 1f, KeyEvent.KEYCODE_W);
+    panel.addView(top, new LinearLayout.LayoutParams(-1, dp(58)));
+    LinearLayout mid = new LinearLayout(this); mid.setGravity(Gravity.CENTER);
+    addGameButton(mid, "◀", 1f, KeyEvent.KEYCODE_A);
+    addGameButton(mid, "●", 1f, KeyEvent.KEYCODE_SPACE);
+    addGameButton(mid, "▶", 1f, KeyEvent.KEYCODE_D);
+    panel.addView(mid, new LinearLayout.LayoutParams(-1, dp(58)));
+    LinearLayout bottom = new LinearLayout(this); bottom.setGravity(Gravity.CENTER);
+    addGameButton(bottom, "▼", 1f, KeyEvent.KEYCODE_S);
+    panel.addView(bottom, new LinearLayout.LayoutParams(-1, dp(58)));
+    LinearLayout shoulders = new LinearLayout(this); shoulders.setGravity(Gravity.CENTER);
+    addGameButton(shoulders, "L1", 1f, KeyEvent.KEYCODE_Q);
+    addGameButton(shoulders, "L2", 1f, KeyEvent.KEYCODE_E);
+    panel.addView(shoulders, new LinearLayout.LayoutParams(-1, dp(48)));
+  }
+
+  private void addLandscapeGamepadRight(LinearLayout panel) {
+    TextView note = new TextView(this);
+    note.setText("AKSI / SERANG");
+    note.setTextColor(Color.rgb(174, 207, 245));
+    note.setTextSize(10);
+    note.setGravity(Gravity.CENTER);
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(24)));
+    LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER);
+    addGameButton(row1, "Y", 1f, KeyEvent.KEYCODE_I);
+    addGameButton(row1, "X", 1f, KeyEvent.KEYCODE_U);
+    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(66)));
+    LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
+    addGameButton(row2, "B", 1f, KeyEvent.KEYCODE_K);
+    addGameButton(row2, "A", 1f, KeyEvent.KEYCODE_J);
+    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(66)));
+    LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
+    addGameButton(row3, "R1", 1f, KeyEvent.KEYCODE_O);
+    addGameButton(row3, "R2", 1f, KeyEvent.KEYCODE_P);
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(52)));
+    Button back = new Button(this);
+    back.setText("Kembali ke keyboard + trackpad");
+    back.setAllCaps(false); back.setTextSize(10); styleButton(back, false);
+    back.setOnClickListener(v -> { gamepadMode = false; rebuildKeyboard(); });
+    panel.addView(back, new LinearLayout.LayoutParams(-1, dp(42)));
+  }
+
+  private void addGameButton(LinearLayout row, String label, float weight, int keyCode) {
+    Button b = new Button(this);
+    b.setText(label); b.setAllCaps(false); b.setTextSize(14);
+    b.setMinWidth(0); b.setMinimumWidth(0);
+    b.setPadding(dp(2), 0, dp(2), 0);
+    styleButton(b, "A".equals(label) || "●".equals(label));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, weight);
+    lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+    row.addView(b, lp);
+    b.setOnTouchListener((v, e) -> {
+      if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { sendKey(keyCode, false); return true; }
+      if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        sendKey(keyCode, false); return true;
+      }
+      return true;
+    });
+  }
+
   private void addLandscapeSettingsPanel(LinearLayout panel) {
     TextView hint = new TextView(this);
     hint.setText("Sesuaikan panel agar nyaman untuk layar virtual 900×900.");
@@ -345,7 +424,7 @@ public class FloatingKeyboardService extends Service {
       keyboardPrefs.edit().putInt("width_percent", value).apply();
       updateOverlayWidth();
     }, "%");
-    addSettingSlider(panel, "Panjang / tinggi keyboard", keyHeightDp, 28, 64, value -> {
+    addSettingSlider(panel, "Tinggi tombol keyboard", keyHeightDp, 28, 96, value -> {
       keyHeightDp = value;
       keyboardPrefs.edit().putInt("key_height_dp", value).apply();
       rebuildKeyboard();
@@ -360,7 +439,7 @@ public class FloatingKeyboardService extends Service {
 
   private void addLandscapeLaptopKeyboard(LinearLayout panel) {
     int oldHeight = keyHeightDp;
-    keyHeightDp = Math.max(36, Math.min(46, oldHeight));
+    keyHeightDp = Math.max(36, Math.min(96, oldHeight));
 
     // Compact, familiar Indonesian QWERTY layout; avoid fake suggestion chips.
     if (symbolsMode) {
@@ -515,13 +594,13 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_MOVE:
           int deltaDp = Math.round((event.getRawY() - dragStartY) /
               Math.max(0.5f, getResources().getDisplayMetrics().density));
-          int next = Math.max(28, Math.min(64, Math.round(dragOriginY + deltaDp)));
+          int next = Math.max(28, Math.min(96, Math.round(dragOriginY + deltaDp)));
           heightGrip.setText("↕  Tinggi tombol: " + next + " dp");
           return true;
         case MotionEvent.ACTION_UP:
           int finalDelta = Math.round((event.getRawY() - dragStartY) /
               Math.max(0.5f, getResources().getDisplayMetrics().density));
-          keyHeightDp = Math.max(28, Math.min(64, Math.round(dragOriginY + finalDelta)));
+          keyHeightDp = Math.max(28, Math.min(96, Math.round(dragOriginY + finalDelta)));
           keyboardPrefs.edit().putInt("key_height_dp", keyHeightDp).apply();
           rebuildKeyboard();
           return true;
