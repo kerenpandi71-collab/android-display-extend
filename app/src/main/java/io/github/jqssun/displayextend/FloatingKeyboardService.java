@@ -61,11 +61,15 @@ public class FloatingKeyboardService extends Service {
   private WindowManager.LayoutParams targetCursorParams;
   private float mouseX = -1f, mouseY = -1f;
   private float lastFingerX, lastFingerY;
+  private float filteredDeltaX, filteredDeltaY;
   private boolean trackpadMoved;
   private boolean mouseHoverStarted;
   private boolean twoFingerGesture;
   private int trackpadButton = MotionEvent.BUTTON_PRIMARY;
-  private static final float POINTER_SENSITIVITY = 2.2f;
+  // Lower gain and lightly filter touch noise to avoid a twitchy virtual cursor.
+  private static final float POINTER_SENSITIVITY = 0.95f;
+  private static final float POINTER_FILTER_CURRENT = 0.62f;
+  private static final float POINTER_DEADZONE_PX = 0.45f;
   private boolean shiftEnabled = false;
   private boolean capsEnabled = false;
   private boolean ctrlEnabled = false;
@@ -482,6 +486,8 @@ public class FloatingKeyboardService extends Service {
       if (action == MotionEvent.ACTION_DOWN) {
         lastFingerX = e.getX();
         lastFingerY = e.getY();
+        filteredDeltaX = 0f;
+        filteredDeltaY = 0f;
         trackpadMoved = false;
         twoFingerGesture = false;
         if (!ensureMousePosition()) return true;
@@ -519,11 +525,19 @@ public class FloatingKeyboardService extends Service {
           return true;
         }
         if (twoFingerGesture) return true;
-        float dx = e.getX() - lastFingerX;
-        float dy = e.getY() - lastFingerY;
-        if (Math.abs(dx) + Math.abs(dy) > dp(1)) trackpadMoved = true;
+        float rawDx = e.getX() - lastFingerX;
+        float rawDy = e.getY() - lastFingerY;
         lastFingerX = e.getX();
         lastFingerY = e.getY();
+        // Ignore sub-pixel sensor noise, then smooth each delta rather than
+        // smoothing absolute coordinates (which would add noticeable lag).
+        if (Math.abs(rawDx) < POINTER_DEADZONE_PX) rawDx = 0f;
+        if (Math.abs(rawDy) < POINTER_DEADZONE_PX) rawDy = 0f;
+        filteredDeltaX += POINTER_FILTER_CURRENT * (rawDx - filteredDeltaX);
+        filteredDeltaY += POINTER_FILTER_CURRENT * (rawDy - filteredDeltaY);
+        float dx = filteredDeltaX;
+        float dy = filteredDeltaY;
+        if (Math.abs(dx) + Math.abs(dy) > dp(0.8f)) trackpadMoved = true;
 
         android.hardware.display.DisplayManager manager =
             (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
