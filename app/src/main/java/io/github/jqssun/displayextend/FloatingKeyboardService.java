@@ -82,7 +82,6 @@ public class FloatingKeyboardService extends Service {
   private final java.util.ArrayDeque<String> gamepadDiagnosticLines = new java.util.ArrayDeque<>();
   private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
   private long lastGamepadMoveLogAt = 0L;
-  private long lastGamepadMoveIntervalMs = 0L;
 
   private synchronized void recordGamepadDiagnostic(String category, String message) {
     String line = new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.ROOT)
@@ -148,9 +147,11 @@ public class FloatingKeyboardService extends Service {
         })
         .setNegativeButton("Tutup", null)
         .create();
-    dialog.getWindow();
+    if (dialog.getWindow() != null && Build.VERSION.SDK_INT >= 26) {
+      dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+    }
     dialog.show();
-    dialog.getWindow().setLayout(
+    if (dialog.getWindow() != null) dialog.getWindow().setLayout(
         Math.max(dp(260), (int) (getResources().getDisplayMetrics().widthPixels * 0.88f)),
         Math.max(dp(260), (int) (getResources().getDisplayMetrics().heightPixels * 0.72f)));
   }
@@ -749,7 +750,6 @@ public class FloatingKeyboardService extends Service {
       if (Math.hypot(dx, dy) < 0.75f) return true;
       long now = android.os.SystemClock.uptimeMillis();
       long interval = lastGamepadMoveLogAt == 0L ? 0L : now - lastGamepadMoveLogAt;
-      lastGamepadMoveIntervalMs = interval;
       lastGamepadMoveLogAt = now;
       long started = android.os.SystemClock.elapsedRealtimeNanos();
       boolean accepted = move(role, targetX, targetY);
