@@ -793,7 +793,7 @@ public class FloatingKeyboardService extends Service {
       paint.setColor(Color.rgb(24, 38, 57));
       canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
-      paint.setStrokeWidth(dp(1.5f));
+      paint.setStrokeWidth(1.5f * getResources().getDisplayMetrics().density);
       paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(77, 143, 183));
       canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
       // A crosshair pad communicates swipe-to-aim more clearly than a tiny joystick.
