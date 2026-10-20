@@ -462,8 +462,13 @@ public class FloatingKeyboardService extends Service {
 
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
     addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
-    addTouchGameButton(row3, "SPELL", 1f, "spell", false);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(58)));
+    addTouchGameButton(row3, "SPELL", 1f, "spell", true);
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(54)));
+
+    LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
+    addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
+    addTouchGameButton(row4, "RECALL", 1f, "recall", false);
+    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(46)));
 
     Button back = new Button(this);
     back.setText("Kembali ke keyboard + trackpad");
@@ -500,7 +505,9 @@ public class FloatingKeyboardService extends Service {
           start[0] = e.getX();
           start[1] = e.getY();
           float[] down = gameTouchController.pointFor(role);
-          gameTouchController.press(role, down);
+          boolean accepted = gameTouchController.press(role, down);
+          State.log("gamepad button down: role=" + role + ", accepted=" + accepted
+              + ", target=(" + Math.round(down[0]) + "," + Math.round(down[1]) + ")");
           v.setPressed(true);
           return true;
         case MotionEvent.ACTION_MOVE:
@@ -509,9 +516,9 @@ public class FloatingKeyboardService extends Service {
             float dx = (e.getX() - start[0]) / Math.max(1f, v.getWidth());
             float dy = (e.getY() - start[1]) / Math.max(1f, v.getHeight());
             float[] origin = gameTouchController.pointFor(role);
-            gameTouchController.move(role,
-                origin[0] + dx * dm.widthPixels * 0.22f,
-                origin[1] + dy * dm.heightPixels * 0.22f);
+            float targetX = origin[0] + dx * dm.widthPixels * 0.34f;
+            float targetY = origin[1] + dy * dm.heightPixels * 0.34f;
+            gameTouchController.moveSmooth(role, targetX, targetY);
           }
           return true;
         case MotionEvent.ACTION_UP:
@@ -569,12 +576,12 @@ public class FloatingKeyboardService extends Service {
       switch (role) {
         case "move":     x = 0.13f; y = 0.87f; break;
         case "attack":   x = 0.94f; y = 0.87f; break;
-        case "skill1":   x = 0.86f; y = 0.78f; break;
-        case "skill2":   x = 0.82f; y = 0.86f; break;
-        case "skill3":   x = 0.91f; y = 0.77f; break;
-        case "ultimate": x = 0.96f; y = 0.81f; break;
-        case "spell":    x = 0.71f; y = 0.91f; break;
-        case "recall":   x = 0.61f; y = 0.91f; break;
+        case "skill1":   x = 0.86f; y = 0.83f; break;
+        case "skill2":   x = 0.82f; y = 0.90f; break;
+        case "skill3":   x = 0.91f; y = 0.82f; break;
+        case "ultimate": x = 0.96f; y = 0.87f; break;
+        case "spell":    x = 0.71f; y = 0.93f; break;
+        case "recall":   x = 0.61f; y = 0.94f; break;
         default:         x = 0.94f; y = 0.87f; break;
       }
       return new float[] {
@@ -600,7 +607,8 @@ public class FloatingKeyboardService extends Service {
         case "ultimate": return 5;
         case "spell": return 6;
         case "recall": return 7;
-        default: return 8;
+        case "upgrade": return 8;
+        default: return 9;
       }
     }
 
@@ -630,6 +638,23 @@ public class FloatingKeyboardService extends Service {
       contact.x = Math.max(0f, Math.min(dm.widthPixels - 1f, x));
       contact.y = Math.max(0f, Math.min(dm.heightPixels - 1f, y));
       return injectContacts(MotionEvent.ACTION_MOVE);
+    }
+
+    synchronized boolean moveSmooth(String role, float targetX, float targetY) {
+      GameContact contact = contacts.get(role);
+      if (contact == null) return false;
+      float startX = contact.x, startY = contact.y;
+      float distance = (float) Math.hypot(targetX - startX, targetY - startY);
+      int steps = Math.max(1, Math.min(6, (int) Math.ceil(distance / 28f)));
+      boolean accepted = true;
+      for (int i = 1; i <= steps; i++) {
+        float t = i / (float) steps;
+        float eased = t * t * (3f - 2f * t);
+        accepted = move(role, startX + (targetX - startX) * eased,
+            startY + (targetY - startY) * eased) && accepted;
+      }
+      State.log("gamepad aim: role=" + role + ", steps=" + steps + ", accepted=" + accepted);
+      return accepted;
     }
 
     synchronized boolean release(String role) {
