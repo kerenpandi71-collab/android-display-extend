@@ -682,20 +682,30 @@ public class FloatingKeyboardService extends Service {
     note.setGravity(Gravity.CENTER);
     panel.addView(note, new LinearLayout.LayoutParams(-1, dp(28)));
 
-    LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER);
-    addTouchGameButton(row1, "SERANG", 1.15f, "attack", false);
-    addTouchGameButton(row1, "S1", 0.85f, "skill1", true);
-    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(62)));
+    LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER_VERTICAL);
+    addTouchGameButton(row1, "SERANG", 1.25f, "attack", false);
+    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(48)));
 
-    LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
-    addTouchGameButton(row2, "S2", 1f, "skill2", true);
-    addTouchGameButton(row2, "S3", 1f, "skill3", true);
-    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(62)));
+    TextView aimTitle = new TextView(this);
+    aimTitle.setText("ANALOG BIDIK SKILL");
+    aimTitle.setTextColor(Color.rgb(174, 207, 245));
+    aimTitle.setTextSize(9);
+    aimTitle.setGravity(Gravity.CENTER);
+    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(22)));
+
+    // Three independent mini-sticks mirror the game's skill cluster. Each keeps
+    // its own contact down while dragging, like a virtual analog stick.
+    LinearLayout skillSticks = new LinearLayout(this);
+    skillSticks.setGravity(Gravity.CENTER);
+    addSkillAimStick(skillSticks, "S1", "skill1");
+    addSkillAimStick(skillSticks, "S2", "skill2");
+    addSkillAimStick(skillSticks, "S3", "skill3");
+    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(82)));
 
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
     addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
     addTouchGameButton(row3, "SPELL", 1f, "spell", true);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(62)));
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(58)));
 
     LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
     addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
@@ -707,6 +717,16 @@ public class FloatingKeyboardService extends Service {
     customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
     customize.setOnClickListener(v -> showGamepadCustomization());
     panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(38)));
+
+    Button autoMap = new Button(this);
+    autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
+    autoMap.setAllCaps(false); autoMap.setTextSize(10); styleButton(autoMap, true);
+    autoMap.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+        .setTitle("Auto map HUD MLBB")
+        .setMessage("Terapkan preset posisi umum Mobile Legends untuk layar landscape? Posisi HUD tiap akun/perangkat bisa berbeda, jadi periksa dan sesuaikan lewat Atur Posisi / Mapping.")
+        .setPositiveButton("Terapkan", (d, w) -> applyAutoMapMlbb())
+        .setNegativeButton("Batal", null).show());
+    panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(34)));
 
     Button diagnostics = new Button(this);
     diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
@@ -730,6 +750,112 @@ public class FloatingKeyboardService extends Service {
     footnote.setTextSize(8);
     footnote.setGravity(Gravity.CENTER);
     panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(32)));
+  }
+
+  private void addSkillAimStick(LinearLayout row, String label, String role) {
+    SkillAimStickView stick = new SkillAimStickView(label, role);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(76), 1f);
+    lp.setMargins(dp(3), dp(2), dp(3), dp(2));
+    row.addView(stick, lp);
+  }
+
+  private final class SkillAimStickView extends View {
+    private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    private final String label;
+    private final String role;
+    private float cx, cy, radius, knobX, knobY;
+    private boolean active;
+    private float[] origin = new float[2];
+
+    SkillAimStickView(String label, String role) {
+      super(FloatingKeyboardService.this);
+      this.label = label;
+      this.role = role;
+      setFocusable(true);
+    }
+
+    @Override protected void onDraw(android.graphics.Canvas canvas) {
+      super.onDraw(canvas);
+      cx = getWidth() / 2f;
+      cy = getHeight() / 2f;
+      radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
+      if (!active) { knobX = cx; knobY = cy; }
+      paint.setStyle(android.graphics.Paint.Style.FILL);
+      paint.setColor(Color.rgb(24, 38, 57));
+      canvas.drawCircle(cx, cy, radius, paint);
+      paint.setStyle(android.graphics.Paint.Style.STROKE);
+      paint.setStrokeWidth(dp(1.5f));
+      paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(77, 143, 183));
+      canvas.drawCircle(cx, cy, radius, paint);
+      paint.setStyle(android.graphics.Paint.Style.FILL);
+      paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(57, 91, 119));
+      canvas.drawCircle(knobX, knobY, radius * 0.43f, paint);
+      paint.setStyle(android.graphics.Paint.Style.STROKE);
+      paint.setStrokeWidth(dp(1));
+      paint.setColor(Color.rgb(167, 202, 255));
+      canvas.drawCircle(knobX, knobY, radius * 0.43f, paint);
+      paint.setStyle(android.graphics.Paint.Style.FILL);
+      paint.setTextAlign(android.graphics.Paint.Align.CENTER);
+      paint.setTextSize(dp(10));
+      paint.setColor(Color.rgb(235, 243, 255));
+      canvas.drawText(label, cx, cy + radius + dp(12), paint);
+    }
+
+    @Override public boolean onTouchEvent(MotionEvent event) {
+      cx = getWidth() / 2f;
+      cy = getHeight() / 2f;
+      radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          active = true;
+          knobX = cx; knobY = cy;
+          origin = gameTouchController.pointFor(role);
+          boolean accepted = gameTouchController.press(role, origin);
+          recordGamepadDiagnostic("SKILL_STICK_DOWN", "role=" + role + ", accepted=" + accepted);
+          invalidate();
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          if (!active) return true;
+          float dx = event.getX() - cx;
+          float dy = event.getY() - cy;
+          float distance = (float) Math.hypot(dx, dy);
+          float limit = Math.max(1f, radius);
+          if (distance > limit) { dx *= limit / distance; dy *= limit / distance; }
+          knobX = cx + dx; knobY = cy + dy;
+          float nx = dx / limit, ny = dy / limit;
+          float maxTravel = Math.max(dp(24), Math.min(dm.widthPixels, dm.heightPixels) * 0.16f);
+          float targetX = Math.max(0f, Math.min(dm.widthPixels - 1f, origin[0] + nx * maxTravel));
+          float targetY = Math.max(0f, Math.min(dm.heightPixels - 1f, origin[1] + ny * maxTravel));
+          gameTouchController.moveSmooth(role, targetX, targetY);
+          invalidate();
+          return true;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          active = false;
+          boolean released = gameTouchController.release(role);
+          recordGamepadDiagnostic("SKILL_STICK_UP", "role=" + role + ", accepted=" + released);
+          invalidate();
+          return true;
+      }
+      return true;
+    }
+  }
+
+  private void applyAutoMapMlbb() {
+    // Practical MLBB HUD preset for landscape screens. Values are normalized to
+    // the target display, so they scale to different virtual-display sizes.
+    keyboardPrefs.edit()
+      .putFloat("game_x_attack", 0.84f).putFloat("game_y_attack", 0.83f)
+      .putFloat("game_x_skill1", 0.91f).putFloat("game_y_skill1", 0.88f)
+      .putFloat("game_x_skill2", 0.86f).putFloat("game_y_skill2", 0.78f)
+      .putFloat("game_x_skill3", 0.80f).putFloat("game_y_skill3", 0.74f)
+      .putFloat("game_x_ultimate", 0.94f).putFloat("game_y_ultimate", 0.76f)
+      .putFloat("game_x_spell", 0.73f).putFloat("game_y_spell", 0.90f)
+      .putFloat("game_x_upgrade", 0.72f).putFloat("game_y_upgrade", 0.80f)
+      .putFloat("game_x_recall", 0.62f).putFloat("game_y_recall", 0.92f)
+      .apply();
+    recordGamepadDiagnostic("AUTO_MAP", "Applied normalized MLBB landscape HUD preset");
+    Toast.makeText(this, "Auto mapping MLBB diterapkan. Sesuaikan jika HUD game berbeda.", Toast.LENGTH_LONG).show();
   }
 
   private void addTouchGameButton(LinearLayout row, String label, float weight,
