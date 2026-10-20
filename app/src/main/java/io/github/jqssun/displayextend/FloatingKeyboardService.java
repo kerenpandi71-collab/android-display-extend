@@ -539,12 +539,18 @@ public class FloatingKeyboardService extends Service {
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(16), dp(8), dp(16), dp(8));
     TextView mappingTitle = new TextView(this);
-    mappingTitle.setText("Pilih tombol overlay, lalu pilih aksi HUD yang akan disentuh.");
+    mappingTitle.setText("LANGKAH 1 · Pilih tombol yang kamu tekan di panel.");
+    mappingTitle.setTextSize(14);
+    mappingTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     content.addView(mappingTitle);
     content.addView(buttonSpinner);
+    TextView targetHint = new TextView(this);
+    targetHint.setText("LANGKAH 2 · Pilih tombol HUD di dalam game yang harus disentuh.");
+    targetHint.setPadding(0, dp(8), 0, dp(2));
+    content.addView(targetHint);
     content.addView(targetSpinner);
     TextView positionTitle = new TextView(this);
-    positionTitle.setText("Posisi target pada layar game (0–100%):");
+    positionTitle.setText("LANGKAH 3 · Atur lokasi tombol HUD. Geser X ke kiri/kanan dan Y ke atas/bawah (persen layar).");
     positionTitle.setPadding(0, dp(12), 0, dp(4));
     content.addView(positionTitle);
     TextView xLabel = new TextView(this);
@@ -588,14 +594,22 @@ public class FloatingKeyboardService extends Service {
       @Override public void onStopTrackingTouch(SeekBar s) {}
     });
     loadPosition[0].run();
+    TextView mappingHelp = new TextView(this);
+    mappingHelp.setText("Contoh: pilih S1 di langkah 1, lalu pilih Skill 1 di langkah 2. Geser X/Y sampai titiknya tepat di atas tombol Skill 1 pada game. Tekan Simpan, lalu tutup dan buka lagi panel gamepad.");
+    mappingHelp.setTextSize(12);
+    mappingHelp.setPadding(dp(16), dp(8), dp(16), dp(12));
+    mappingHelp.setTextColor(Color.rgb(45, 55, 70));
+    content.addView(mappingHelp);
+    android.widget.ScrollView dialogScroll = new android.widget.ScrollView(this);
+    dialogScroll.setFillViewport(true);
+    dialogScroll.addView(content);
     // This UI is launched from a Service/overlay, not an Activity. Create the
     // dialog first and assign an overlay window type before show(), otherwise
     // Android can throw BadTokenException and kill the floating keyboard.
     android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(
         this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-      .setTitle("Custom tombol & mapping")
-      .setMessage("Mapping menghubungkan tombol overlay ke aksi HUD. Posisi disimpan terpisah per aksi.")
-      .setView(content)
+      .setTitle("Atur tombol gamepad")
+      .setView(dialogScroll)
       .setPositiveButton("Simpan", (d, w) -> {
         int buttonIndex = Math.max(0, Math.min(roles.length - 1, buttonSpinner.getSelectedItemPosition()));
         int targetIndex = Math.max(0, Math.min(roles.length - 1, targetSpinner.getSelectedItemPosition()));
@@ -747,8 +761,10 @@ public class FloatingKeyboardService extends Service {
     b.setOnTouchListener((v, e) -> {
       switch (e.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
-          start[0] = e.getX();
-          start[1] = e.getY();
+          // Use screen-space finger coordinates. Local button coordinates can
+          // saturate almost immediately when the finger leaves the small skill button.
+          start[0] = e.getRawX();
+          start[1] = e.getRawY();
           float[] down = gameTouchController.pointFor(mappedRole);
           aimOrigin[0] = down[0];
           aimOrigin[1] = down[1];
@@ -763,17 +779,23 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_MOVE:
           if (aimable && gameTouchController.isActive(mappedRole)) {
             android.util.DisplayMetrics dm = gameTouchController.metrics();
-            // Match the analog stick's normalized, bounded travel. MotionEvent
-            // coordinates can extend far outside a small button while dragging;
-            // multiplying those raw values by the full display caused huge
-            // jumps and hard clamping at the screen edge.
-            float halfW = Math.max(1f, v.getWidth() * 0.5f);
-            float halfH = Math.max(1f, v.getHeight() * 0.5f);
-            float nx = Math.max(-1f, Math.min(1f, (e.getX() - start[0]) / halfW));
-            float ny = Math.max(-1f, Math.min(1f, (e.getY() - start[1]) / halfH));
-            float aimRadius = Math.max(30f, Math.min(dm.widthPixels, dm.heightPixels) * 0.14f);
+            // Convert the real finger drag into normalized stick-like movement.
+            // A larger gesture radius gives the player fine control instead of
+            // reaching maximum aim travel after only a few pixels.
+            float dragX = e.getRawX() - start[0];
+            float dragY = e.getRawY() - start[1];
+            float gestureRadius = Math.max(dp(80), Math.min(dm.widthPixels, dm.heightPixels) * 0.22f);
+            float nx = dragX / gestureRadius;
+            float ny = dragY / gestureRadius;
+            float magnitude = (float) Math.hypot(nx, ny);
+            if (magnitude > 1f) { nx /= magnitude; ny /= magnitude; }
+            float aimRadius = Math.max(30f, Math.min(dm.widthPixels, dm.heightPixels) * 0.18f);
             float targetX = Math.max(0f, Math.min(dm.widthPixels - 1f, aimOrigin[0] + nx * aimRadius));
             float targetY = Math.max(0f, Math.min(dm.heightPixels - 1f, aimOrigin[1] + ny * aimRadius));
+            recordGamepadDiagnostic("AIM_TOUCH", "role=" + mappedRole + ", fingerDelta=("
+                + Math.round(dragX) + "," + Math.round(dragY) + "), normalized=("
+                + String.format(java.util.Locale.ROOT, "%.2f", nx) + ","
+                + String.format(java.util.Locale.ROOT, "%.2f", ny) + ")");
             gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
