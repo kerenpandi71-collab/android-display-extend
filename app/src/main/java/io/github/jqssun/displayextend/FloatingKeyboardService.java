@@ -638,7 +638,16 @@ public class FloatingKeyboardService extends Service {
     }
     try {
       dialog.show();
-      recordGamepadDiagnostic("CONFIG", "customization dialog shown");
+      android.view.Window shownWindow = dialog.getWindow();
+      if (shownWindow != null) {
+        android.view.WindowManager.LayoutParams layout = shownWindow.getAttributes();
+        layout.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+        layout.x = dp(8);
+        layout.width = Math.min(dp(390), getResources().getDisplayMetrics().widthPixels - dp(24));
+        layout.height = Math.min(dp(620), getResources().getDisplayMetrics().heightPixels - dp(24));
+        shownWindow.setAttributes(layout);
+      }
+      recordGamepadDiagnostic("CONFIG", "customization dialog shown on right side");
     } catch (Throwable error) {
       recordGamepadDiagnostic("CONFIG_ERROR", error.getClass().getSimpleName() + ": " + error.getMessage());
       State.log("gamepad customization dialog failed: " + error);
