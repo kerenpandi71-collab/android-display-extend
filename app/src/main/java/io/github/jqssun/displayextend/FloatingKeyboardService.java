@@ -328,7 +328,7 @@ public class FloatingKeyboardService extends Service {
         PixelFormat.TRANSLUCENT);
     landscapeTrackpadParams.gravity = Gravity.TOP | Gravity.RIGHT;
     landscapeTrackpadParams.x = dp(6);
-    landscapeTrackpadParams.y = dp(6);
+    landscapeTrackpadParams.y = gamepadMode ? dp(26) : dp(6);
 
     try {
       windowManager.addView(keyboardView, params);
@@ -576,8 +576,8 @@ public class FloatingKeyboardService extends Service {
       switch (role) {
         case "move":     x = 0.13f; y = 0.87f; break;
         case "attack":   x = 0.94f; y = 0.87f; break;
-        case "skill1":   x = 0.86f; y = 0.83f; break;
-        case "skill2":   x = 0.82f; y = 0.90f; break;
+        case "skill1":   x = 0.82f; y = 0.90f; break;
+        case "skill2":   x = 0.86f; y = 0.83f; break;
         case "skill3":   x = 0.91f; y = 0.82f; break;
         case "ultimate": x = 0.96f; y = 0.87f; break;
         case "spell":    x = 0.71f; y = 0.93f; break;
@@ -643,18 +643,20 @@ public class FloatingKeyboardService extends Service {
 
     synchronized boolean moveSmooth(String role, float targetX, float targetY) {
       GameContact contact = contacts.get(role);
-      if (contact == null) return false;
-      float startX = contact.x, startY = contact.y;
-      float distance = (float) Math.hypot(targetX - startX, targetY - startY);
-      int steps = Math.max(1, Math.min(6, (int) Math.ceil(distance / 28f)));
-      boolean accepted = true;
-      for (int i = 1; i <= steps; i++) {
-        float t = i / (float) steps;
-        float eased = t * t * (3f - 2f * t);
-        accepted = move(role, startX + (targetX - startX) * eased,
-            startY + (targetY - startY) * eased) && accepted;
+      if (contact == null) {
+        State.log("gamepad aim rejected: role=" + role + " is not active");
+        return false;
       }
-      State.log("gamepad aim: role=" + role + ", steps=" + steps + ", accepted=" + accepted);
+      // Do not burst several synthetic MOVE events in one UI frame. The old
+      // loop emitted up to six events with effectively identical timestamps,
+      // which can make drag-to-aim feel notchy on slower devices. Send one
+      // accurately clamped point per real finger movement instead.
+      float dx = targetX - contact.x;
+      float dy = targetY - contact.y;
+      if (Math.hypot(dx, dy) < 0.75f) return true;
+      boolean accepted = move(role, targetX, targetY);
+      State.log("gamepad aim: role=" + role + ", dx=" + Math.round(dx)
+          + ", dy=" + Math.round(dy) + ", accepted=" + accepted);
       return accepted;
     }
 
