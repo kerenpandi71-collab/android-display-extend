@@ -83,6 +83,12 @@ public class FloatingKeyboardService extends Service {
   private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
   private long lastGamepadMoveLogAt = 0L;
   private TextView gamepadCoordinateIndicator;
+  private View visualMappingMarkerView;
+  private WindowManager visualMappingWindowManager;
+  private WindowManager.LayoutParams visualMappingMarkerParams;
+  private String visualMappingRole;
+  private float visualMappingDragRawX, visualMappingDragRawY;
+  private int visualMappingDragOriginX, visualMappingDragOriginY;
 
   private void updateGamepadCoordinateIndicator(String role, float x, float y) {
     if (gamepadCoordinateIndicator == null) return;
@@ -92,6 +98,173 @@ public class FloatingKeyboardService extends Service {
     gamepadCoordinateIndicator.setText(role.toUpperCase(java.util.Locale.ROOT)
         + "  X:" + Math.round(x) + " Y:" + Math.round(y)
         + "  ·  " + Math.round(nx * 100) + "% / " + Math.round(ny * 100) + "%");
+  }
+
+  /**
+   * Lets the user select a HUD action, then drag its marker directly on the
+   * target virtual display. Stored coordinates are normalized to that display.
+   */
+  private void showVisualMappingPicker() {
+    final String[] labels = {"Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"};
+    final String[] roles = {"attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"};
+    android.widget.Spinner spinner = new android.widget.Spinner(this);
+    spinner.setAdapter(new android.widget.ArrayAdapter<>(this,
+        android.R.layout.simple_spinner_dropdown_item, labels));
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(16), dp(8), dp(16), dp(8));
+    TextView hint = new TextView(this);
+    hint.setText("Pilih tombol yang ingin diatur. Setelah Mulai, penanda muncul di virtual display. Geser penanda tepat ke atas tombol HUD di game, lalu tekan Simpan posisi.");
+    hint.setTextSize(13);
+    content.addView(hint);
+    content.addView(spinner);
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Mapping langsung di virtual display")
+        .setView(content)
+        .setPositiveButton("Mulai geser", (d, which) -> {
+          int index = Math.max(0, Math.min(roles.length - 1, spinner.getSelectedItemPosition()));
+          showVisualMappingMarker(roles[index], labels[index]);
+        })
+        .setNegativeButton("Batal", null)
+        .create();
+    if (dialog.getWindow() != null) dialog.getWindow().setType(
+        Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE);
+    dialog.show();
+  }
+
+  private void showVisualMappingMarker(String role, String label) {
+    removeVisualMappingMarker(false);
+    android.hardware.display.DisplayManager displays =
+        (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+    android.view.Display target = displays != null ? displays.getDisplay(targetDisplayId) : null;
+    if (target == null) {
+      Toast.makeText(this, "Virtual display tidak ditemukan. Pilih display target yang aktif.", Toast.LENGTH_LONG).show();
+      recordGamepadDiagnostic("VISUAL_MAP_ERROR", "target display missing: " + targetDisplayId);
+      return;
+    }
+    try {
+      android.content.Context displayContext = createDisplayContext(target);
+      visualMappingWindowManager = (WindowManager) displayContext.getSystemService(WINDOW_SERVICE);
+      if (visualMappingWindowManager == null) throw new IllegalStateException("WindowManager target tidak tersedia");
+      TextView marker = new TextView(displayContext);
+      marker.setText(label + "\\n↕ GESER");
+      marker.setTextColor(Color.rgb(18, 25, 38));
+      marker.setTextSize(11);
+      marker.setTypeface(null, android.graphics.Typeface.BOLD);
+      marker.setGravity(Gravity.CENTER);
+      marker.setElevation(dp(5));
+      marker.setBackground(createVisualMarkerBackground());
+      marker.setContentDescription("Penanda mapping " + label + ". Seret untuk memindahkan, ketuk Simpan posisi di panel.");
+      visualMappingRole = role;
+      visualMappingMarkerView = marker;
+      android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+      target.getRealMetrics(dm);
+      float[] point = gameTouchController.pointFor(role);
+      int markerW = dp(76);
+      int markerH = dp(58);
+      visualMappingMarkerParams = new WindowManager.LayoutParams(
+          markerW, markerH,
+          Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+              : WindowManager.LayoutParams.TYPE_PHONE,
+          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+          PixelFormat.TRANSLUCENT);
+      visualMappingMarkerParams.gravity = Gravity.TOP | Gravity.START;
+      visualMappingMarkerParams.x = Math.max(0, Math.min(Math.max(0, dm.widthPixels - markerW), Math.round(point[0] - markerW / 2f)));
+      visualMappingMarkerParams.y = Math.max(0, Math.min(Math.max(0, dm.heightPixels - markerH), Math.round(point[1] - markerH / 2f)));
+      marker.setOnTouchListener((v, event) -> {
+        switch (event.getActionMasked()) {
+          case MotionEvent.ACTION_DOWN:
+            visualMappingDragRawX = event.getRawX();
+            visualMappingDragRawY = event.getRawY();
+            visualMappingDragOriginX = visualMappingMarkerParams.x;
+            visualMappingDragOriginY = visualMappingMarkerParams.y;
+            return true;
+          case MotionEvent.ACTION_MOVE: {
+            android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+            target.getRealMetrics(metrics);
+            int maxX = Math.max(0, metrics.widthPixels - visualMappingMarkerParams.width);
+            int maxY = Math.max(0, metrics.heightPixels - visualMappingMarkerParams.height);
+            visualMappingMarkerParams.x = Math.max(0, Math.min(maxX, visualMappingDragOriginX
+                + Math.round(event.getRawX() - visualMappingDragRawX)));
+            visualMappingMarkerParams.y = Math.max(0, Math.min(maxY, visualMappingDragOriginY
+                + Math.round(event.getRawY() - visualMappingDragRawY)));
+            try { visualMappingWindowManager.updateViewLayout(visualMappingMarkerView, visualMappingMarkerParams); }
+            catch (Throwable t) { recordGamepadDiagnostic("VISUAL_MAP_MOVE_ERROR", t.getMessage()); }
+            float centerX = visualMappingMarkerParams.x + visualMappingMarkerParams.width / 2f;
+            float centerY = visualMappingMarkerParams.y + visualMappingMarkerParams.height / 2f;
+            float nx = metrics.widthPixels > 0 ? centerX / metrics.widthPixels : 0f;
+            float ny = metrics.heightPixels > 0 ? centerY / metrics.heightPixels : 0f;
+            updateGamepadCoordinateIndicator(visualMappingRole, centerX, centerY);
+            recordVisualMappingPosition(visualMappingRole, nx, ny, false);
+            return true;
+          }
+          case MotionEvent.ACTION_UP:
+          case MotionEvent.ACTION_CANCEL:
+            Toast.makeText(FloatingKeyboardService.this,
+                "Posisi " + label + ": lepaskan penanda, lalu tekan SIMPAN POSISI.", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+        return true;
+      });
+      visualMappingWindowManager.addView(visualMappingMarkerView, visualMappingMarkerParams);
+      recordGamepadDiagnostic("VISUAL_MAP_START", "role=" + role + ", display=" + targetDisplayId);
+      Toast.makeText(this, "Geser penanda di atas tombol HUD. Simpan posisi dari panel gamepad.", Toast.LENGTH_LONG).show();
+    } catch (Throwable t) {
+      recordGamepadDiagnostic("VISUAL_MAP_ERROR", t.getClass().getSimpleName() + ": " + t.getMessage());
+      State.log("visual mapping marker failed: " + t);
+      removeVisualMappingMarker(false);
+      Toast.makeText(this, "Penanda visual gagal dibuka: " + t.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+    }
+  }
+
+  private android.graphics.drawable.GradientDrawable createVisualMarkerBackground() {
+    android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+    bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+    bg.setColor(Color.rgb(111, 211, 244));
+    bg.setCornerRadius(dp(14));
+    bg.setStroke(dp(2), Color.WHITE);
+    return bg;
+  }
+
+  private void recordVisualMappingPosition(String role, float nx, float ny, boolean toast) {
+    nx = Math.max(0f, Math.min(1f, nx));
+    ny = Math.max(0f, Math.min(1f, ny));
+    keyboardPrefs.edit().putFloat("game_x_" + role, nx).putFloat("game_y_" + role, ny).apply();
+    if (toast) Toast.makeText(this, "Posisi " + role + " disimpan.", Toast.LENGTH_SHORT).show();
+  }
+
+  private void saveVisualMappingPosition() {
+    if (visualMappingMarkerParams == null || visualMappingRole == null) {
+      Toast.makeText(this, "Pilih Mapping Visual dulu.", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    android.hardware.display.DisplayManager displays =
+        (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+    android.view.Display target = displays != null ? displays.getDisplay(targetDisplayId) : null;
+    if (target == null) return;
+    android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+    target.getRealMetrics(dm);
+    float cx = visualMappingMarkerParams.x + visualMappingMarkerParams.width / 2f;
+    float cy = visualMappingMarkerParams.y + visualMappingMarkerParams.height / 2f;
+    recordVisualMappingPosition(visualMappingRole,
+        dm.widthPixels > 0 ? cx / dm.widthPixels : 0f,
+        dm.heightPixels > 0 ? cy / dm.heightPixels : 0f, true);
+    recordGamepadDiagnostic("VISUAL_MAP_SAVED", "role=" + visualMappingRole
+        + ", x=" + Math.round(cx) + ", y=" + Math.round(cy)
+        + ", display=" + targetDisplayId);
+    removeVisualMappingMarker(false);
+  }
+
+  private void removeVisualMappingMarker(boolean save) {
+    if (save) saveVisualMappingPosition();
+    if (visualMappingMarkerView != null && visualMappingWindowManager != null) {
+      try { visualMappingWindowManager.removeView(visualMappingMarkerView); } catch (Throwable ignored) {}
+    }
+    visualMappingMarkerView = null;
+    visualMappingMarkerParams = null;
+    visualMappingWindowManager = null;
+    visualMappingRole = null;
   }
 
   private synchronized void recordGamepadDiagnostic(String category, String message) {
@@ -701,6 +874,18 @@ public class FloatingKeyboardService extends Service {
     customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
     customize.setOnClickListener(v -> showGamepadCustomization());
     panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(34)));
+
+    Button visualMap = new Button(this);
+    visualMap.setText("MAPPING VISUAL · GESER PENANDA");
+    visualMap.setAllCaps(false); visualMap.setTextSize(10); styleButton(visualMap, true);
+    visualMap.setOnClickListener(v -> showVisualMappingPicker());
+    panel.addView(visualMap, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button saveVisualMap = new Button(this);
+    saveVisualMap.setText("SIMPAN POSISI PENANDA");
+    saveVisualMap.setAllCaps(false); saveVisualMap.setTextSize(10); styleButton(saveVisualMap, false);
+    saveVisualMap.setOnClickListener(v -> saveVisualMappingPosition());
+    panel.addView(saveVisualMap, new LinearLayout.LayoutParams(-1, dp(30)));
 
     Button autoMap = new Button(this);
     autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
@@ -2365,6 +2550,7 @@ public class FloatingKeyboardService extends Service {
     }
     rootInputExecutor.shutdownNow();
     removeTargetCursorOverlay();
+    removeVisualMappingMarker(false);
     inputManager = null;
     super.onDestroy();
   }
