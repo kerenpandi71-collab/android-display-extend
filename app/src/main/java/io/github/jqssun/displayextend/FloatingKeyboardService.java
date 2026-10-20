@@ -94,16 +94,16 @@ public class FloatingKeyboardService extends Service {
 
   private synchronized String buildGamepadDiagnosticReport() {
     StringBuilder report = new StringBuilder();
-    report.append("Android Display Extend — Gamepad Diagnostics\\n")
-        .append("Display target: ").append(targetDisplayId).append('\\n')
-        .append("Mode: ").append(gamepadMode ? "GAMEPAD" : "KEYBOARD/TRACKPAD").append('\\n')
-        .append("Root input: ").append(rootMode).append('\\n')
+    report.append("Android Display Extend — Gamepad Diagnostics\n")
+        .append("Display target: ").append(targetDisplayId).append('\n')
+        .append("Mode: ").append(gamepadMode ? "GAMEPAD" : "KEYBOARD/TRACKPAD").append('\n')
+        .append("Root input: ").append(rootMode).append('\n')
         .append("Log lines retained: ").append(gamepadDiagnosticLines.size()).append('/')
-        .append(MAX_GAMEPAD_DIAGNOSTIC_LINES).append('\\n')
-        .append("Note: accepted=true means Android accepted injection, not that the game registered it.\\n")
-        .append("--------------------------------------------------\\n");
+        .append(MAX_GAMEPAD_DIAGNOSTIC_LINES).append('\n')
+        .append("Note: accepted=true means Android accepted injection, not that the game registered it.\n")
+        .append("--------------------------------------------------\n");
     synchronized (this) {
-      for (String line : gamepadDiagnosticLines) report.append(line).append('\\n');
+      for (String line : gamepadDiagnosticLines) report.append(line).append('\n');
     }
     return report.toString();
   }
