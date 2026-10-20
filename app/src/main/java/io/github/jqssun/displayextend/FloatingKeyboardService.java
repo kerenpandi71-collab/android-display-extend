@@ -1205,6 +1205,11 @@ public class FloatingKeyboardService extends Service {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
     }
+    if (landscapeTrackpadView != null && windowManager != null) {
+      try { windowManager.removeView(landscapeTrackpadView); } catch (Exception ignored) {}
+      landscapeTrackpadView = null;
+      landscapeTrackpadParams = null;
+    }
     rootInputExecutor.shutdownNow();
     removeTargetCursorOverlay();
     inputManager = null;
