@@ -148,7 +148,7 @@ public class FloatingKeyboardService extends Service {
       visualMappingWindowManager = (WindowManager) displayContext.getSystemService(WINDOW_SERVICE);
       if (visualMappingWindowManager == null) throw new IllegalStateException("WindowManager target tidak tersedia");
       TextView marker = new TextView(displayContext);
-      marker.setText(label + "\\n↕ GESER");
+      marker.setText(label + "\n↕ GESER");
       marker.setTextColor(Color.rgb(18, 25, 38));
       marker.setTextSize(11);
       marker.setTypeface(null, android.graphics.Typeface.BOLD);
