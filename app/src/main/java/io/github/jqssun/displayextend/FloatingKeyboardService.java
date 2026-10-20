@@ -345,7 +345,7 @@ public class FloatingKeyboardService extends Service {
       keyboardPrefs.edit().putInt("width_percent", value).apply();
       updateOverlayWidth();
     }, "%");
-    addSettingSlider(panel, "Tinggi tombol", keyHeightDp, 34, 48, value -> {
+    addSettingSlider(panel, "Panjang / tinggi keyboard", keyHeightDp, 28, 64, value -> {
       keyHeightDp = value;
       keyboardPrefs.edit().putInt("key_height_dp", value).apply();
       rebuildKeyboard();
@@ -458,7 +458,7 @@ public class FloatingKeyboardService extends Service {
     LinearLayout gripRow = new LinearLayout(this);
     gripRow.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
     TextView grip = new TextView(this);
-    grip.setText("⋮   Tarik untuk ubah lebar");
+    grip.setText("↔ Lebar");
     grip.setTextColor(Color.rgb(167, 202, 255));
     grip.setTextSize(10);
     grip.setGravity(Gravity.CENTER);
@@ -494,6 +494,41 @@ public class FloatingKeyboardService extends Service {
       return true;
     });
     panel.addView(gripRow, new LinearLayout.LayoutParams(-1, dp(30)));
+
+    // Second grip adjusts the keyboard's vertical size by changing key height.
+    TextView heightGrip = new TextView(this);
+    heightGrip.setText("↕  Tarik untuk ubah panjang keyboard");
+    heightGrip.setTextColor(Color.rgb(167, 202, 255));
+    heightGrip.setTextSize(10);
+    heightGrip.setGravity(Gravity.CENTER);
+    heightGrip.setPadding(dp(6), dp(2), dp(6), dp(2));
+    android.graphics.drawable.GradientDrawable heightBg = new android.graphics.drawable.GradientDrawable();
+    heightBg.setColor(Color.rgb(31, 47, 69));
+    heightBg.setCornerRadius(dp(9));
+    heightGrip.setBackground(heightBg);
+    heightGrip.setOnTouchListener((v, event) -> {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartY = event.getRawY();
+          dragOriginY = keyHeightDp;
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          int deltaDp = Math.round((event.getRawY() - dragStartY) /
+              Math.max(0.5f, getResources().getDisplayMetrics().density));
+          int next = Math.max(28, Math.min(64, Math.round(dragOriginY + deltaDp)));
+          heightGrip.setText("↕  Tinggi tombol: " + next + " dp");
+          return true;
+        case MotionEvent.ACTION_UP:
+          int finalDelta = Math.round((event.getRawY() - dragStartY) /
+              Math.max(0.5f, getResources().getDisplayMetrics().density));
+          keyHeightDp = Math.max(28, Math.min(64, Math.round(dragOriginY + finalDelta)));
+          keyboardPrefs.edit().putInt("key_height_dp", keyHeightDp).apply();
+          rebuildKeyboard();
+          return true;
+      }
+      return true;
+    });
+    panel.addView(heightGrip, new LinearLayout.LayoutParams(-1, dp(28)));
   }
 
   private android.graphics.drawable.GradientDrawable createPanelBackground() {
