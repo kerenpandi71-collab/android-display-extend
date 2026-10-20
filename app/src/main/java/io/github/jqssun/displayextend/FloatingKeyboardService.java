@@ -524,6 +524,123 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
+  private void showGamepadCustomization() {
+    final String[] buttons = {"Serang", "S1", "S2", "S3", "Ultimate", "Spell", "Upgrade", "Recall"};
+    final String[] roles = {"attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"};
+    final android.widget.Spinner buttonSpinner = new android.widget.Spinner(this);
+    final android.widget.Spinner targetSpinner = new android.widget.Spinner(this);
+    android.widget.ArrayAdapter<String> buttonAdapter = new android.widget.ArrayAdapter<>(this,
+        android.R.layout.simple_spinner_dropdown_item, buttons);
+    android.widget.ArrayAdapter<String> targetAdapter = new android.widget.ArrayAdapter<>(this,
+        android.R.layout.simple_spinner_dropdown_item, buttons);
+    buttonSpinner.setAdapter(buttonAdapter);
+    targetSpinner.setAdapter(targetAdapter);
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(16), dp(8), dp(16), dp(8));
+    TextView mappingTitle = new TextView(this);
+    mappingTitle.setText("Pilih tombol overlay, lalu pilih aksi HUD yang akan disentuh.");
+    content.addView(mappingTitle);
+    content.addView(buttonSpinner);
+    content.addView(targetSpinner);
+    TextView positionTitle = new TextView(this);
+    positionTitle.setText("Posisi target pada layar game (0–100%):");
+    positionTitle.setPadding(0, dp(12), 0, dp(4));
+    content.addView(positionTitle);
+    TextView xLabel = new TextView(this);
+    TextView yLabel = new TextView(this);
+    SeekBar xSeek = new SeekBar(this);
+    SeekBar ySeek = new SeekBar(this);
+    xSeek.setMax(100); ySeek.setMax(100);
+    content.addView(xLabel); content.addView(xSeek);
+    content.addView(yLabel); content.addView(ySeek);
+    final Runnable[] loadPosition = new Runnable[1];
+    loadPosition[0] = () -> {
+      int index = targetSpinner.getSelectedItemPosition();
+      String role = roles[Math.max(0, Math.min(roles.length - 1, index))];
+      float x = keyboardPrefs.getFloat("game_x_" + role, defaultGameX(role));
+      float y = keyboardPrefs.getFloat("game_y_" + role, defaultGameY(role));
+      xSeek.setProgress(Math.round(x * 100f)); ySeek.setProgress(Math.round(y * 100f));
+      xLabel.setText("X: " + xSeek.getProgress() + "%");
+      yLabel.setText("Y: " + ySeek.getProgress() + "%");
+    };
+    targetSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) { loadPosition[0].run(); }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+    });
+    buttonSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+        String mapped = keyboardPrefs.getString("game_map_" + roles[pos], roles[pos]);
+        int mappedIndex = 0;
+        for (int i = 0; i < roles.length; i++) if (roles[i].equals(mapped)) mappedIndex = i;
+        targetSpinner.setSelection(mappedIndex);
+      }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+    });
+    xSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar s, int p, boolean user) { xLabel.setText("X: " + p + "%"); }
+      @Override public void onStartTrackingTouch(SeekBar s) {}
+      @Override public void onStopTrackingTouch(SeekBar s) {}
+    });
+    ySeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar s, int p, boolean user) { yLabel.setText("Y: " + p + "%"); }
+      @Override public void onStartTrackingTouch(SeekBar s) {}
+      @Override public void onStopTrackingTouch(SeekBar s) {}
+    });
+    loadPosition[0].run();
+    new android.app.AlertDialog.Builder(this).setTitle("Custom tombol & mapping")
+      .setMessage("Mapping menghubungkan tombol overlay ke aksi HUD. Posisi disimpan terpisah per aksi.")
+      .setView(content)
+      .setPositiveButton("Simpan", (d, w) -> {
+        int buttonIndex = Math.max(0, Math.min(roles.length - 1, buttonSpinner.getSelectedItemPosition()));
+        int targetIndex = Math.max(0, Math.min(roles.length - 1, targetSpinner.getSelectedItemPosition()));
+        String buttonRole = roles[buttonIndex];
+        String targetRole = roles[targetIndex];
+        keyboardPrefs.edit()
+          .putString("game_map_" + buttonRole, targetRole)
+          .putFloat("game_x_" + targetRole, xSeek.getProgress() / 100f)
+          .putFloat("game_y_" + targetRole, ySeek.getProgress() / 100f)
+          .apply();
+        recordGamepadDiagnostic("CONFIG", "map " + buttonRole + " -> " + targetRole
+            + ", x=" + xSeek.getProgress() + "%, y=" + ySeek.getProgress() + "%");
+        Toast.makeText(this, "Mapping dan posisi disimpan. Tutup lalu buka lagi mode gamepad agar diterapkan.", Toast.LENGTH_LONG).show();
+      })
+      .setNeutralButton("Reset posisi", (d, w) -> {
+        String role = roles[Math.max(0, Math.min(roles.length - 1, targetSpinner.getSelectedItemPosition()))];
+        keyboardPrefs.edit().remove("game_x_" + role).remove("game_y_" + role).apply();
+        Toast.makeText(this, "Posisi aksi direset ke bawaan.", Toast.LENGTH_SHORT).show();
+      })
+      .setNegativeButton("Batal", null).show();
+  }
+
+  private float defaultGameX(String role) {
+    switch (role) {
+      case "move": return 0.13f;
+      case "skill1": return 0.82f;
+      case "skill2": return 0.86f;
+      case "skill3": return 0.91f;
+      case "ultimate": return 0.96f;
+      case "spell": return 0.71f;
+      case "upgrade": return 0.70f;
+      case "recall": return 0.61f;
+      default: return 0.94f;
+    }
+  }
+
+  private float defaultGameY(String role) {
+    switch (role) {
+      case "move": return 0.87f;
+      case "skill1": return 0.90f;
+      case "skill2": return 0.83f;
+      case "skill3": return 0.82f;
+      case "ultimate": return 0.87f;
+      case "spell": return 0.93f;
+      case "upgrade": return 0.84f;
+      case "recall": return 0.94f;
+      default: return 0.87f;
+    }
+  }
+
   private void addLandscapeGamepadRight(LinearLayout panel) {
     TextView note = new TextView(this);
     note.setText("SENTUHAN MOBA · TAP / TAHAN / BIDIK");
@@ -551,6 +668,12 @@ public class FloatingKeyboardService extends Service {
     addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
     panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(46)));
+
+    Button customize = new Button(this);
+    customize.setText("ATUR POSISI / MAPPING");
+    customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
+    customize.setOnClickListener(v -> showGamepadCustomization());
+    panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(38)));
 
     Button diagnostics = new Button(this);
     diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
@@ -678,23 +801,8 @@ public class FloatingKeyboardService extends Service {
 
     float[] pointFor(String role) {
       android.util.DisplayMetrics dm = metrics();
-      float x;
-      float y;
-      // Coordinates tuned against the square 900x900 virtual-display HUD
-      // visible in the user's screenshot. Keep these normalized to support
-      // other virtual-display resolutions.
-      switch (role) {
-        case "move":     x = 0.13f; y = 0.87f; break;
-        case "attack":   x = 0.94f; y = 0.87f; break;
-        case "skill1":   x = 0.82f; y = 0.90f; break;
-        case "skill2":   x = 0.86f; y = 0.83f; break;
-        case "skill3":   x = 0.91f; y = 0.82f; break;
-        case "ultimate": x = 0.96f; y = 0.87f; break;
-        case "spell":    x = 0.71f; y = 0.93f; break;
-        case "upgrade":  x = 0.70f; y = 0.84f; break;
-        case "recall":   x = 0.61f; y = 0.94f; break;
-        default:         x = 0.94f; y = 0.87f; break;
-      }
+      float x = keyboardPrefs.getFloat("game_x_" + role, defaultGameX(role));
+      float y = keyboardPrefs.getFloat("game_y_" + role, defaultGameY(role));
       return new float[] {
         Math.max(0f, Math.min(dm.widthPixels - 1f, dm.widthPixels * x)),
         Math.max(0f, Math.min(dm.heightPixels - 1f, dm.heightPixels * y))
