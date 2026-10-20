@@ -996,14 +996,23 @@ public class FloatingKeyboardService extends Service {
 
   private void addCustomTriggerControls(LinearLayout panel) {
     int count = getCustomTriggerCount();
-    for (int start = 1; start <= count; start += 2) {
-      LinearLayout row = new LinearLayout(this);
-      row.setGravity(Gravity.CENTER);
-      int end = Math.min(count, start + 1);
-      for (int index = start; index <= end; index++) {
-        addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
+    if (count > 0) {
+      LinearLayout triggerList = new LinearLayout(this);
+      triggerList.setOrientation(LinearLayout.VERTICAL);
+      for (int start = 1; start <= count; start += 2) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER);
+        int end = Math.min(count, start + 1);
+        for (int index = start; index <= end; index++) {
+          addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
+        }
+        triggerList.addView(row, new LinearLayout.LayoutParams(-1, dp(38)));
       }
-      panel.addView(row, new LinearLayout.LayoutParams(-1, dp(40)));
+      android.widget.ScrollView triggerScroll = new android.widget.ScrollView(this);
+      triggerScroll.setFillViewport(false);
+      triggerScroll.setVerticalScrollBarEnabled(true);
+      triggerScroll.addView(triggerList);
+      panel.addView(triggerScroll, new LinearLayout.LayoutParams(-1, dp(88)));
     }
     Button addTrigger = new Button(this);
     addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
