@@ -360,58 +360,26 @@ public class FloatingKeyboardService extends Service {
 
   private void addLandscapeLaptopKeyboard(LinearLayout panel) {
     int oldHeight = keyHeightDp;
-    keyHeightDp = Math.max(34, Math.min(48, oldHeight));
-    // Suggestion strip styled like a laptop/IME toolbar. Suggestions are
-    // placeholders until an actual IME is attached; key input remains real.
-    LinearLayout suggestions = new LinearLayout(this);
-    suggestions.setGravity(Gravity.CENTER_VERTICAL);
-    suggestions.setPadding(dp(3), 0, dp(3), 0);
-    String[] suggestionsText = {"⌨", "Halo", "Bisa", "Oke", "🎙"};
-    for (int i = 0; i < suggestionsText.length; i++) {
-      final String text = suggestionsText[i];
-      TextView item = new TextView(this);
-      item.setText(text);
-      item.setTextColor(Color.rgb(174, 207, 245));
-      item.setTextSize(10);
-      item.setGravity(Gravity.CENTER);
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(28), i == 0 || i == 4 ? 0.8f : 1f);
-      lp.setMargins(dp(1), dp(1), dp(1), dp(1));
-      suggestions.addView(item, lp);
-      if (i == 1 || i == 2 || i == 3) item.setOnClickListener(v -> sendText(text.toLowerCase(java.util.Locale.ROOT)));
-    }
-    panel.addView(suggestions);
+    keyHeightDp = Math.max(36, Math.min(46, oldHeight));
 
+    // Compact, familiar Indonesian QWERTY layout; avoid fake suggestion chips.
     if (symbolsMode) {
-      addLandscapeKeyRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0","-","="});
-      addLandscapeKeyRow(panel, new String[] {"@","#","$","%","&","*","(",")","/","\\","⌫"});
-      addLandscapeKeyRow(panel, new String[] {"~","'",";",":","!","?",".",",","[","]","ABC"});
+      addLandscapeKeyRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0"});
+      addLandscapeKeyRow(panel, new String[] {"@","#","$","%","&","-","+","(",")","⌫"});
+      addLandscapeKeyRow(panel, new String[] {"*","\"","'",":",";","!","?",".",",","ABC"});
     } else {
-      addLandscapeKeyRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0","-","=","⌫"});
-      addLandscapeKeyRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p","[","]"});
-      addLandscapeKeyRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l",";","'","Enter"});
-      addLandscapeKeyRow(panel, new String[] {"Shift","z","x","c","v","b","n","m",",",".","/","Shift"});
+      addLandscapeKeyRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+      addLandscapeKeyRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+      addLandscapeKeyRow(panel, new String[] {"Shift","z","x","c","v","b","n","m","⌫"});
     }
-
-    LinearLayout modifiers = new LinearLayout(this);
-    modifiers.setGravity(Gravity.CENTER);
-    addLaptopKey(modifiers, "Ctrl", 1f, () -> toggleModifier("Ctrl"));
-    addLaptopKey(modifiers, "⊞", 0.8f, () -> sendKey(KeyEvent.KEYCODE_META_LEFT, false));
-    addLaptopKey(modifiers, "Alt", 1f, () -> toggleModifier("Alt"));
-    addLaptopKey(modifiers, "Space", 3.2f, () -> sendText(" "));
-    addLaptopKey(modifiers, "AltGr", 1f, () -> sendKey(KeyEvent.KEYCODE_ALT_RIGHT, false));
-    addLaptopKey(modifiers, "Enter", 1.35f, () -> sendKey(KeyEvent.KEYCODE_ENTER, false));
-    panel.addView(modifiers);
 
     LinearLayout bottom = new LinearLayout(this);
     bottom.setGravity(Gravity.CENTER);
-    addLaptopKey(bottom, symbolsMode ? "ABC" : "?123", 1.3f, () -> { symbolsMode = !symbolsMode; rebuildKeyboard(); });
-    addLaptopKey(bottom, "☺", 0.8f, () -> sendText("😊"));
-    addLaptopKey(bottom, ",", 0.8f, () -> sendText(","));
-    addLaptopKey(bottom, ".", 0.8f, () -> sendText("."));
-    addLaptopKey(bottom, "←", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_LEFT, false));
-    addLaptopKey(bottom, "↑", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_UP, false));
-    addLaptopKey(bottom, "↓", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_DOWN, false));
-    addLaptopKey(bottom, "→", 0.8f, () -> sendKey(KeyEvent.KEYCODE_DPAD_RIGHT, false));
+    addLaptopKey(bottom, "?123", 1.15f, () -> { symbolsMode = !symbolsMode; rebuildKeyboard(); });
+    addLaptopKey(bottom, ",", 0.7f, () -> sendText(","));
+    addLaptopKey(bottom, "Space", 3.4f, () -> sendText(" "));
+    addLaptopKey(bottom, ".", 0.7f, () -> sendText("."));
+    addLaptopKey(bottom, "Enter", 1.3f, () -> sendKey(KeyEvent.KEYCODE_ENTER, false));
     panel.addView(bottom);
     keyHeightDp = oldHeight;
   }
@@ -432,7 +400,24 @@ public class FloatingKeyboardService extends Service {
           case "Shift": shiftEnabled = !shiftEnabled; break;
           case "Caps": capsEnabled = !capsEnabled; break;
           case "ABC": symbolsMode = false; rebuildKeyboard(); break;
-          default: sendText(key);
+          default:
+            String output = key;
+            if (key.length() == 1 && Character.isLetter(key.charAt(0)) && (shiftEnabled || capsEnabled)) {
+              output = key.toUpperCase(java.util.Locale.ROOT);
+            } else if (shiftEnabled) {
+              switch (key) {
+                case "1": output = "!"; break; case "2": output = "@"; break;
+                case "3": output = "#"; break; case "4": output = "$"; break;
+                case "5": output = "%"; break; case "6": output = "^"; break;
+                case "7": output = "&"; break; case "8": output = "*"; break;
+                case "9": output = "("; break; case "0": output = ")"; break;
+                case ",": output = "<"; break; case ".": output = ">"; break;
+                case "/": output = "?"; break; case "'": output = "\""; break;
+              }
+            }
+            sendText(output);
+            if (shiftEnabled) shiftEnabled = false;
+            break;
         }
       });
     }
@@ -797,10 +782,60 @@ public class FloatingKeyboardService extends Service {
     bg.setCornerRadius(dp(16));
     bg.setStroke(dp(1), Color.rgb(75, 128, 160));
     pad.setBackground(bg);
-    int padHeight = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE ? 220 : 155;
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(padHeight));
+    int defaultPadHeight = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE ? 220 : 155;
+    int padHeight = keyboardPrefs.getInt("trackpad_height_dp", defaultPadHeight);
+    int savedPadWidth = keyboardPrefs.getInt("trackpad_width_dp", -1);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(savedPadWidth > 0 ? dp(savedPadWidth) : -1, dp(padHeight));
+    if (savedPadWidth > 0) lp.gravity = Gravity.CENTER_HORIZONTAL;
     lp.setMargins(dp(2), 0, dp(2), dp(4));
     panel.addView(pad, lp);
+    TextView resizeHandle = new TextView(this);
+    resizeHandle.setText("⤢  Ubah ukuran trackpad");
+    resizeHandle.setTextColor(Color.rgb(167, 202, 255));
+    resizeHandle.setTextSize(10);
+    resizeHandle.setGravity(Gravity.CENTER);
+    resizeHandle.setPadding(dp(4), dp(3), dp(4), dp(3));
+    android.graphics.drawable.GradientDrawable handleBg = new android.graphics.drawable.GradientDrawable();
+    handleBg.setColor(Color.rgb(25, 38, 57));
+    handleBg.setCornerRadius(dp(9));
+    resizeHandle.setBackground(handleBg);
+    LinearLayout.LayoutParams handleLp = new LinearLayout.LayoutParams(-1, dp(28));
+    handleLp.setMargins(dp(2), dp(2), dp(2), dp(4));
+    panel.addView(resizeHandle, handleLp);
+    final int[] padSize = {padHeight, -1};
+    resizeHandle.setOnTouchListener((v, event) -> {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartX = event.getRawX();
+          dragStartY = event.getRawY();
+          dragOriginX = pad.getWidth();
+          dragOriginY = pad.getHeight();
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          int maxH = Math.max(dp(120), getResources().getDisplayMetrics().heightPixels - dp(100));
+          int minH = dp(100);
+          int nextH = Math.max(minH, Math.min(maxH,
+              Math.round(dragOriginY + event.getRawY() - dragStartY)));
+          int maxW = Math.max(dp(130), panel.getWidth() - dp(12));
+          int minW = dp(100);
+          int nextW = Math.max(minW, Math.min(maxW,
+              Math.round(dragOriginX + event.getRawX() - dragStartX)));
+          LinearLayout.LayoutParams current = (LinearLayout.LayoutParams) pad.getLayoutParams();
+          current.height = nextH;
+          current.width = nextW;
+          current.weight = 0f;
+          current.gravity = Gravity.CENTER_HORIZONTAL;
+          pad.setLayoutParams(current);
+          padSize[0] = nextH;
+          padSize[1] = nextW;
+          return true;
+        case MotionEvent.ACTION_UP:
+          keyboardPrefs.edit().putInt("trackpad_height_dp", Math.round(padSize[0] / getResources().getDisplayMetrics().density))
+              .putInt("trackpad_width_dp", Math.round(padSize[1] / getResources().getDisplayMetrics().density)).apply();
+          return true;
+      }
+      return true;
+    });
 
     pad.setOnTouchListener((v, e) -> {
       int action = e.getActionMasked();
