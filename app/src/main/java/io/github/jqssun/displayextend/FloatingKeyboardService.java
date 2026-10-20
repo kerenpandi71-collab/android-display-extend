@@ -324,7 +324,7 @@ public class FloatingKeyboardService extends Service {
       if (symbolsMode) {
         addTypingRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0"});
         addTypingRow(panel, new String[] {"@","#","$","%","&","-","+","(",")","/"});
-        addTypingRow(panel, new String[] {"*","\\"","' ",":",";","!","?",".",",","⌫"});
+        addTypingRow(panel, new String[] {"*","~","'",":",";","!","?",".",",","⌫"});
       } else {
         addTypingRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
         addTypingRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
@@ -390,7 +390,10 @@ public class FloatingKeyboardService extends Service {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
     for (String key : keys) {
-      addKey(row, key, () -> sendText(key), 1f);
+      addKey(row, key, () -> {
+        if ("⌫".equals(key)) sendKey(KeyEvent.KEYCODE_DEL, false);
+        else sendText(key);
+      }, 1f);
     }
     panel.addView(row);
   }
