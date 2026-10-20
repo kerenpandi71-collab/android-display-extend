@@ -48,7 +48,7 @@ public class FloatingKeyboardService extends Service {
   private int targetDisplayId = 0;
   private boolean rootMode = false;
   private int keyHeightDp = 42;
-  private int widthPercent = 96;
+  private int widthPercent = 70;
   private int verticalOffsetDp = 12;
   private int keyboardLayout = 0;
   private boolean settingsVisible = false;
@@ -83,7 +83,12 @@ public class FloatingKeyboardService extends Service {
     super.onCreate();
     windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
     keyboardPrefs = getSharedPreferences("floating_keyboard", MODE_PRIVATE);
-    widthPercent = keyboardPrefs.getInt("width_percent", 96);
+    widthPercent = keyboardPrefs.getInt("width_percent", 70);
+    // Older builds defaulted to 96%, which made the landscape keyboard too wide.
+    if (widthPercent == 96) {
+      widthPercent = 70;
+      keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+    }
     keyHeightDp = keyboardPrefs.getInt("key_height_dp", 42);
     int screenHeightDp = Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density);
     int defaultY = Math.max(12, screenHeightDp - (keyHeightDp * 4) - 60 - 12);
@@ -278,6 +283,7 @@ public class FloatingKeyboardService extends Service {
       keyHeightDp = Math.min(keyHeightDp, 32);
       addKeyboardLayout(left);
       keyHeightDp = previousHeight;
+      addLandscapeResizeGrip(left);
     }
     keyboardView = left;
 
@@ -285,7 +291,7 @@ public class FloatingKeyboardService extends Service {
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         : WindowManager.LayoutParams.TYPE_PHONE;
     params = new WindowManager.LayoutParams(
-        Math.max(dp(260), Math.round(screenWidth * 0.40f)),
+        Math.max(dp(180), Math.round(screenWidth * 0.50f * widthPercent / 100f)),
         Math.min(screenHeight - dp(12), WindowManager.LayoutParams.WRAP_CONTENT),
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
@@ -328,6 +334,53 @@ public class FloatingKeyboardService extends Service {
       landscapeTrackpadView = null;
       stopSelf();
     }
+  }
+
+  /**
+   * Landscape-only drag grip. Dragging horizontally resizes the keyboard panel;
+   * widthPercent is 20..100% of the left half of the phone, leaving the center
+   * virtual display and the right trackpad area available.
+   */
+  private void addLandscapeResizeGrip(LinearLayout panel) {
+    LinearLayout gripRow = new LinearLayout(this);
+    gripRow.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+    TextView grip = new TextView(this);
+    grip.setText("⋮   Tarik untuk ubah lebar");
+    grip.setTextColor(Color.rgb(167, 202, 255));
+    grip.setTextSize(10);
+    grip.setGravity(Gravity.CENTER);
+    grip.setPadding(dp(8), dp(2), dp(8), dp(2));
+    android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+    bg.setColor(Color.rgb(31, 47, 69));
+    bg.setCornerRadius(dp(10));
+    grip.setBackground(bg);
+    gripRow.addView(grip, new LinearLayout.LayoutParams(-2, dp(28)));
+    gripRow.setPadding(0, dp(2), dp(2), 0);
+    grip.setOnTouchListener((v, event) -> {
+      if (params == null) return false;
+      float density = getResources().getDisplayMetrics().density;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartX = event.getRawX();
+          dragOriginX = params.width;
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          int maxWidth = Math.max(dp(180), getResources().getDisplayMetrics().widthPixels / 2);
+          int minWidth = dp(180);
+          int nextWidth = Math.max(minWidth, Math.min(maxWidth,
+              dragOriginX + Math.round(event.getRawX() - dragStartX)));
+          params.width = nextWidth;
+          widthPercent = Math.max(20, Math.min(100,
+              Math.round(nextWidth * 100f / Math.max(1f, getResources().getDisplayMetrics().widthPixels * 0.5f))));
+          try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+          return true;
+        case MotionEvent.ACTION_UP:
+          keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+          return true;
+      }
+      return true;
+    });
+    panel.addView(gripRow, new LinearLayout.LayoutParams(-1, dp(30)));
   }
 
   private android.graphics.drawable.GradientDrawable createPanelBackground() {
@@ -377,7 +430,7 @@ public class FloatingKeyboardService extends Service {
       });
     }
     panel.addView(layouts);
-    addSettingSlider(panel, "Lebar", widthPercent, 60, 100, value -> {
+    addSettingSlider(panel, "Lebar keyboard", widthPercent, 20, 100, value -> {
       widthPercent = value;
       keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
       updateOverlayWidth();
@@ -430,7 +483,11 @@ public class FloatingKeyboardService extends Service {
     if (params == null || keyboardView == null) return;
     android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
     windowManager.getDefaultDisplay().getMetrics(metrics);
-    params.width = Math.max(dp(260), Math.round(metrics.widthPixels * widthPercent / 100f));
+    if (getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+      params.width = Math.max(dp(180), Math.round(metrics.widthPixels * 0.50f * widthPercent / 100f));
+    } else {
+      params.width = Math.max(dp(260), Math.round(metrics.widthPixels * widthPercent / 100f));
+    }
     try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
   }
 
