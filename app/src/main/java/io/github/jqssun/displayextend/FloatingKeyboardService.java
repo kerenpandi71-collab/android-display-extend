@@ -346,26 +346,111 @@ public class FloatingKeyboardService extends Service {
   // It is a keyboard-event controller, not a Bluetooth/HID game controller.
   private void addLandscapeGamepadLeft(LinearLayout panel) {
     TextView note = new TextView(this);
-    note.setText("ARAH / GERAK");
+    note.setText("ANALOG KIRI · GERAK");
     note.setTextColor(Color.rgb(174, 207, 245));
     note.setTextSize(10);
     note.setGravity(Gravity.CENTER);
-    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(24)));
-    LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER);
-    addGameButton(top, "▲", 1f, KeyEvent.KEYCODE_W);
-    panel.addView(top, new LinearLayout.LayoutParams(-1, dp(58)));
-    LinearLayout mid = new LinearLayout(this); mid.setGravity(Gravity.CENTER);
-    addGameButton(mid, "◀", 1f, KeyEvent.KEYCODE_A);
-    addGameButton(mid, "●", 1f, KeyEvent.KEYCODE_SPACE);
-    addGameButton(mid, "▶", 1f, KeyEvent.KEYCODE_D);
-    panel.addView(mid, new LinearLayout.LayoutParams(-1, dp(58)));
-    LinearLayout bottom = new LinearLayout(this); bottom.setGravity(Gravity.CENTER);
-    addGameButton(bottom, "▼", 1f, KeyEvent.KEYCODE_S);
-    panel.addView(bottom, new LinearLayout.LayoutParams(-1, dp(58)));
-    LinearLayout shoulders = new LinearLayout(this); shoulders.setGravity(Gravity.CENTER);
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(28)));
+
+    AnalogStickView stick = new AnalogStickView();
+    LinearLayout.LayoutParams stickLp = new LinearLayout.LayoutParams(-1, dp(250));
+    stickLp.setMargins(dp(6), dp(4), dp(6), dp(10));
+    panel.addView(stick, stickLp);
+
+    LinearLayout shoulders = new LinearLayout(this);
+    shoulders.setGravity(Gravity.CENTER);
     addGameButton(shoulders, "L1", 1f, KeyEvent.KEYCODE_Q);
     addGameButton(shoulders, "L2", 1f, KeyEvent.KEYCODE_E);
     panel.addView(shoulders, new LinearLayout.LayoutParams(-1, dp(48)));
+
+    TextView hint = new TextView(this);
+    hint.setText("Geser analog untuk WASD · lepas untuk berhenti");
+    hint.setTextColor(Color.rgb(174, 207, 245));
+    hint.setTextSize(9);
+    hint.setGravity(Gravity.CENTER);
+    panel.addView(hint, new LinearLayout.LayoutParams(-1, dp(28)));
+  }
+
+  private final class AnalogStickView extends View {
+    private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    private float centerX, centerY, baseRadius, knobX, knobY;
+    private boolean active = false;
+    private final java.util.HashSet<Integer> heldKeys = new java.util.HashSet<>();
+
+    AnalogStickView() { super(FloatingKeyboardService.this); setFocusable(true); }
+
+    @Override protected void onDraw(android.graphics.Canvas canvas) {
+      super.onDraw(canvas);
+      centerX = getWidth() / 2f;
+      centerY = getHeight() / 2f;
+      baseRadius = Math.max(dp(40), Math.min(getWidth(), getHeight()) * 0.39f);
+      if (!active) { knobX = centerX; knobY = centerY; }
+      paint.setStyle(android.graphics.Paint.Style.FILL);
+      paint.setColor(Color.rgb(24, 38, 57));
+      canvas.drawCircle(centerX, centerY, baseRadius, paint);
+      paint.setStyle(android.graphics.Paint.Style.STROKE);
+      paint.setStrokeWidth(dp(2));
+      paint.setColor(Color.rgb(77, 143, 183));
+      canvas.drawCircle(centerX, centerY, baseRadius, paint);
+      paint.setStyle(android.graphics.Paint.Style.FILL);
+      paint.setColor(Color.rgb(57, 91, 119));
+      canvas.drawCircle(knobX, knobY, baseRadius * 0.43f, paint);
+      paint.setStyle(android.graphics.Paint.Style.STROKE);
+      paint.setStrokeWidth(dp(1));
+      paint.setColor(Color.rgb(167, 202, 255));
+      canvas.drawCircle(knobX, knobY, baseRadius * 0.43f, paint);
+    }
+
+    @Override public boolean onTouchEvent(MotionEvent event) {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+        case MotionEvent.ACTION_MOVE:
+          active = true;
+          float dx = event.getX() - centerX, dy = event.getY() - centerY;
+          float distance = (float)Math.sqrt(dx * dx + dy * dy);
+          float max = Math.max(1f, baseRadius);
+          if (distance > max) { dx *= max / distance; dy *= max / distance; }
+          knobX = centerX + dx; knobY = centerY + dy;
+          updateHeldKeys(dx / max, dy / max);
+          invalidate();
+          return true;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          active = false;
+          releaseAllKeys();
+          invalidate();
+          return true;
+      }
+      return true;
+    }
+
+    private void updateHeldKeys(float x, float y) {
+      java.util.HashSet<Integer> next = new java.util.HashSet<>();
+      float dead = 0.28f;
+      if (y < -dead) next.add(KeyEvent.KEYCODE_W);
+      if (y > dead) next.add(KeyEvent.KEYCODE_S);
+      if (x < -dead) next.add(KeyEvent.KEYCODE_A);
+      if (x > dead) next.add(KeyEvent.KEYCODE_D);
+      for (int key : new java.util.HashSet<>(heldKeys)) if (!next.contains(key)) emitHeldKey(key, KeyEvent.ACTION_UP);
+      for (int key : next) if (!heldKeys.contains(key)) emitHeldKey(key, KeyEvent.ACTION_DOWN);
+      heldKeys.clear();
+      heldKeys.addAll(next);
+    }
+
+    private void releaseAllKeys() {
+      for (int key : new java.util.HashSet<>(heldKeys)) emitHeldKey(key, KeyEvent.ACTION_UP);
+      heldKeys.clear();
+    }
+
+    private void emitHeldKey(int keyCode, int action) {
+      if (rootMode) {
+        // Root shell input keyevent is tap-only and cannot reliably hold a key.
+        if (action == KeyEvent.ACTION_DOWN) sendKey(keyCode, false);
+        return;
+      }
+      long now = android.os.SystemClock.uptimeMillis();
+      inject(new KeyEvent(now, now, action, keyCode, 0));
+    }
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
