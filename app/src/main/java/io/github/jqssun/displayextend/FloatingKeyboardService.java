@@ -773,14 +773,16 @@ public class FloatingKeyboardService extends Service {
     private final String label;
     private final String role;
     private float cx, cy, radius, knobX, knobY;
+    private float lastFingerX, lastFingerY;
     private boolean active;
-    private float[] origin = new float[2];
+    private float[] currentTarget = new float[2];
 
     SkillAimStickView(String label, String role) {
       super(FloatingKeyboardService.this);
       this.label = label;
       this.role = role;
       setFocusable(true);
+      setContentDescription(label + " — area geser untuk membidik");
     }
 
     @Override protected void onDraw(android.graphics.Canvas canvas) {
@@ -789,25 +791,32 @@ public class FloatingKeyboardService extends Service {
       cy = getHeight() / 2f;
       radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
       if (!active) { knobX = cx; knobY = cy; }
+      float left = dp(3), top = dp(3), right = getWidth() - dp(3), bottom = getHeight() - dp(3);
+      float corner = dp(12);
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(Color.rgb(24, 38, 57));
-      canvas.drawCircle(cx, cy, radius, paint);
+      canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
-      paint.setStrokeWidth(dp(2));
+      paint.setStrokeWidth(dp(1.5f));
       paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(77, 143, 183));
-      canvas.drawCircle(cx, cy, radius, paint);
+      canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
+      // A crosshair pad communicates swipe-to-aim more clearly than a tiny joystick.
+      paint.setStrokeWidth(dp(1));
+      paint.setColor(Color.rgb(77, 111, 139));
+      canvas.drawLine(cx - dp(13), cy, cx + dp(13), cy, paint);
+      canvas.drawLine(cx, cy - dp(13), cx, cy + dp(13), paint);
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(57, 91, 119));
-      canvas.drawCircle(knobX, knobY, radius * 0.43f, paint);
+      canvas.drawCircle(knobX, knobY, dp(5), paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
       paint.setStrokeWidth(dp(1));
       paint.setColor(Color.rgb(167, 202, 255));
-      canvas.drawCircle(knobX, knobY, radius * 0.43f, paint);
+      canvas.drawCircle(knobX, knobY, dp(5), paint);
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setTextAlign(android.graphics.Paint.Align.CENTER);
       paint.setTextSize(dp(10));
       paint.setColor(Color.rgb(235, 243, 255));
-      canvas.drawText(label, cx, cy + radius + dp(12), paint);
+      canvas.drawText(label, cx, getHeight() - dp(5), paint);
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
@@ -817,26 +826,41 @@ public class FloatingKeyboardService extends Service {
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
           active = true;
-          knobX = cx; knobY = cy;
-          origin = gameTouchController.pointFor(role);
-          boolean accepted = gameTouchController.press(role, origin);
+          lastFingerX = event.getX();
+          lastFingerY = event.getY();
+          knobX = lastFingerX;
+          knobY = lastFingerY;
+          currentTarget = gameTouchController.pointFor(role);
+          boolean accepted = gameTouchController.press(role, currentTarget);
           recordGamepadDiagnostic("SKILL_STICK_DOWN", "role=" + role + ", accepted=" + accepted);
           invalidate();
           return true;
         case MotionEvent.ACTION_MOVE:
           if (!active) return true;
-          float dx = event.getX() - cx;
-          float dy = event.getY() - cy;
-          float distance = (float) Math.hypot(dx, dy);
-          float limit = Math.max(1f, radius);
-          if (distance > limit) { dx *= limit / distance; dy *= limit / distance; }
-          knobX = cx + dx; knobY = cy + dy;
-          float nx = dx / limit, ny = dy / limit;
-          android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-          float maxTravel = Math.max(dp(24), Math.min(metrics.widthPixels, metrics.heightPixels) * 0.16f);
-          float targetX = Math.max(0f, Math.min(metrics.widthPixels - 1f, origin[0] + nx * maxTravel));
-          float targetY = Math.max(0f, Math.min(metrics.heightPixels - 1f, origin[1] + ny * maxTravel));
-          gameTouchController.moveSmooth(role, targetX, targetY);
+          float fingerX = event.getX();
+          float fingerY = event.getY();
+          float deltaX = fingerX - lastFingerX;
+          float deltaY = fingerY - lastFingerY;
+          lastFingerX = fingerX;
+          lastFingerY = fingerY;
+          // Relative drag: each finger movement nudges the injected touch point.
+          // Unlike a normalized mini-stick, this does not hit maximum travel after a
+          // short swipe and does not snap back toward a fixed origin.
+          float sensitivity = 1.65f;
+          currentTarget[0] += deltaX * sensitivity;
+          currentTarget[1] += deltaY * sensitivity;
+          android.util.DisplayMetrics targetMetrics = gameTouchController.metrics();
+          currentTarget[0] = Math.max(0f, Math.min(targetMetrics.widthPixels - 1f, currentTarget[0]));
+          currentTarget[1] = Math.max(0f, Math.min(targetMetrics.heightPixels - 1f, currentTarget[1]));
+          float padLimitX = Math.max(dp(8), getWidth() / 2f - dp(8));
+          float padLimitY = Math.max(dp(8), getHeight() / 2f - dp(8));
+          knobX = Math.max(dp(8), Math.min(getWidth() - dp(8), fingerX));
+          knobY = Math.max(dp(8), Math.min(getHeight() - dp(8), fingerY));
+          boolean moved = gameTouchController.moveSmooth(role, currentTarget[0], currentTarget[1]);
+          recordGamepadDiagnostic("AIM_PAD_MOVE", "role=" + role + ", fingerDelta=("
+              + Math.round(deltaX) + "," + Math.round(deltaY) + "), target=("
+              + Math.round(currentTarget[0]) + "," + Math.round(currentTarget[1])
+              + "), accepted=" + moved);
           invalidate();
           return true;
         case MotionEvent.ACTION_UP:
