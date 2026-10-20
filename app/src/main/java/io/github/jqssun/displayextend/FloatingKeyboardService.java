@@ -106,8 +106,17 @@ public class FloatingKeyboardService extends Service {
    * target virtual display. Stored coordinates are normalized to that display.
    */
   private void showVisualMappingPicker() {
-    final String[] labels = {"Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"};
-    final String[] roles = {"attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"};
+    java.util.ArrayList<String> labelsList = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
+    java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= getCustomTriggerCount(); i++) {
+      String customRole = "custom_" + i;
+      rolesList.add(customRole);
+      labelsList.add(getCustomTriggerLabel(i));
+    }
+    final String[] labels = labelsList.toArray(new String[0]);
+    final String[] roles = rolesList.toArray(new String[0]);
     android.widget.Spinner spinner = new android.widget.Spinner(this);
     spinner.setAdapter(new android.widget.ArrayAdapter<>(this,
         android.R.layout.simple_spinner_dropdown_item, labels));
@@ -944,6 +953,8 @@ public class FloatingKeyboardService extends Service {
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
     panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(40)));
 
+    addCustomTriggerControls(panel);
+
     Button back = new Button(this);
     back.setText("Kembali ke keyboard + trackpad");
     back.setAllCaps(false); back.setTextSize(10); styleButton(back, false);
@@ -971,6 +982,91 @@ public class FloatingKeyboardService extends Service {
     footnote.setTextSize(8);
     footnote.setGravity(Gravity.CENTER);
     panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(18)));
+  }
+
+  private int getCustomTriggerCount() {
+    return Math.max(0, Math.min(20, keyboardPrefs.getInt("custom_trigger_count", 0)));
+  }
+
+  private String getCustomTriggerLabel(int index) {
+    String label = keyboardPrefs.getString("custom_trigger_label_" + index, "Trigger " + index);
+    if (label == null || label.trim().isEmpty()) return "Trigger " + index;
+    return label.trim();
+  }
+
+  private void addCustomTriggerControls(LinearLayout panel) {
+    int count = getCustomTriggerCount();
+    for (int start = 1; start <= count; start += 2) {
+      LinearLayout row = new LinearLayout(this);
+      row.setGravity(Gravity.CENTER);
+      int end = Math.min(count, start + 1);
+      for (int index = start; index <= end; index++) {
+        addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
+      }
+      panel.addView(row, new LinearLayout.LayoutParams(-1, dp(40)));
+    }
+    Button addTrigger = new Button(this);
+    addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
+    addTrigger.setAllCaps(false);
+    addTrigger.setTextSize(10);
+    styleButton(addTrigger, true);
+    addTrigger.setEnabled(count < 20);
+    addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
+    panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
+  }
+
+  private void showAddCustomTriggerDialog() {
+    final int currentCount = getCustomTriggerCount();
+    if (currentCount >= 20) {
+      Toast.makeText(this, "Maksimal 20 trigger tambahan.", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    final android.widget.EditText nameInput = new android.widget.EditText(this);
+    nameInput.setSingleLine(true);
+    nameInput.setHint("Contoh: SHOP, CHAT, ITEM, MINIMAP");
+    nameInput.setText("Trigger " + (currentCount + 1));
+    nameInput.setSelectAllOnFocus(true);
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(16), dp(8), dp(16), dp(4));
+    TextView hint = new TextView(this);
+    hint.setText("Buat tombol tambahan. Setelah dibuat, buka Mapping Visual lalu pilih tombol ini dan geser penandanya ke lokasi HUD yang sesuai, misalnya Shop.");
+    hint.setTextSize(13);
+    content.addView(hint);
+    content.addView(nameInput, new LinearLayout.LayoutParams(-1, dp(52)));
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Tambah trigger baru")
+        .setView(content)
+        .setPositiveButton("Buat trigger", null)
+        .setNegativeButton("Batal", null)
+        .create();
+    if (dialog.getWindow() != null && Build.VERSION.SDK_INT >= 26) {
+      dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+    }
+    dialog.setOnShowListener(ignored -> dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+        .setOnClickListener(v -> {
+          String label = nameInput.getText() == null ? "" : nameInput.getText().toString().trim();
+          if (label.isEmpty()) {
+            nameInput.setError("Masukkan nama tombol");
+            return;
+          }
+          if (label.length() > 14) {
+            nameInput.setError("Maksimal 14 karakter");
+            return;
+          }
+          int next = getCustomTriggerCount() + 1;
+          keyboardPrefs.edit()
+              .putString("custom_trigger_label_" + next, label)
+              .putInt("custom_trigger_count", next)
+              .putFloat("game_x_custom_" + next, 0.5f)
+              .putFloat("game_y_custom_" + next, 0.5f)
+              .apply();
+          recordGamepadDiagnostic("CUSTOM_TRIGGER_ADD", "role=custom_" + next + ", label=" + label);
+          dialog.dismiss();
+          Toast.makeText(this, "Trigger " + label + " dibuat. Panel diperbarui.", Toast.LENGTH_SHORT).show();
+          rebuildKeyboard();
+        }));
+    dialog.show();
   }
 
   private void addSkillAimStick(LinearLayout row, String label, String role) {
@@ -1272,6 +1368,13 @@ public class FloatingKeyboardService extends Service {
     }
 
     private int pointerIdFor(String role) {
+      if (role != null && role.startsWith("custom_")) {
+        try {
+          int customIndex = Integer.parseInt(role.substring("custom_".length()));
+          // Keep every user-created trigger on a distinct Android pointer ID.
+          return Math.max(9, Math.min(28, 8 + customIndex));
+        } catch (NumberFormatException ignored) {}
+      }
       switch (role) {
         case "move": return 0;
         case "attack": return 1;
@@ -1282,7 +1385,7 @@ public class FloatingKeyboardService extends Service {
         case "spell": return 6;
         case "recall": return 7;
         case "upgrade": return 8;
-        default: return 9;
+        default: return 29;
       }
     }
 
