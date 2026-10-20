@@ -78,6 +78,7 @@ public class FloatingKeyboardService extends Service {
   private boolean altEnabled = false;
   private boolean symbolsMode = false;
   private boolean gamepadMode = false;
+  private final GameTouchController gameTouchController = new GameTouchController();
 
   @Override
   public void onCreate() {
@@ -342,11 +343,11 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
-  // Gamepad layout uses accessible on-screen buttons mapped to Android key events.
-  // It is a keyboard-event controller, not a Bluetooth/HID game controller.
+  // Virtual MOBA gamepad: inject real touch contacts into the selected display.
+  // Default control coordinates are normalized, so they scale with the virtual display.
   private void addLandscapeGamepadLeft(LinearLayout panel) {
     TextView note = new TextView(this);
-    note.setText("ANALOG KIRI · GERAK");
+    note.setText("ANALOG SENTUH · GERAK");
     note.setTextColor(Color.rgb(174, 207, 245));
     note.setTextSize(10);
     note.setGravity(Gravity.CENTER);
@@ -359,23 +360,22 @@ public class FloatingKeyboardService extends Service {
 
     LinearLayout shoulders = new LinearLayout(this);
     shoulders.setGravity(Gravity.CENTER);
-    addGameButton(shoulders, "L1", 1f, KeyEvent.KEYCODE_Q);
-    addGameButton(shoulders, "L2", 1f, KeyEvent.KEYCODE_E);
+    addTouchGameButton(shoulders, "RECALL", 1f, "recall", false);
+    addTouchGameButton(shoulders, "SPELL", 1f, "spell", false);
     panel.addView(shoulders, new LinearLayout.LayoutParams(-1, dp(48)));
 
     TextView hint = new TextView(this);
-    hint.setText("Geser analog untuk WASD · lepas untuk berhenti");
+    hint.setText("Geser analog untuk bergerak · tarik skill untuk bidik");
     hint.setTextColor(Color.rgb(174, 207, 245));
     hint.setTextSize(9);
     hint.setGravity(Gravity.CENTER);
-    panel.addView(hint, new LinearLayout.LayoutParams(-1, dp(28)));
+    panel.addView(hint, new LinearLayout.LayoutParams(-1, dp(30)));
   }
 
   private final class AnalogStickView extends View {
     private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
     private float centerX, centerY, baseRadius, knobX, knobY;
     private boolean active = false;
-    private final java.util.HashSet<Integer> heldKeys = new java.util.HashSet<>();
 
     AnalogStickView() { super(FloatingKeyboardService.this); setFocusable(true); }
 
@@ -393,7 +393,7 @@ public class FloatingKeyboardService extends Service {
       paint.setColor(Color.rgb(77, 143, 183));
       canvas.drawCircle(centerX, centerY, baseRadius, paint);
       paint.setStyle(android.graphics.Paint.Style.FILL);
-      paint.setColor(Color.rgb(57, 91, 119));
+      paint.setColor(active ? Color.rgb(76, 171, 204) : Color.rgb(57, 91, 119));
       canvas.drawCircle(knobX, knobY, baseRadius * 0.43f, paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
       paint.setStrokeWidth(dp(1));
@@ -402,107 +402,284 @@ public class FloatingKeyboardService extends Service {
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
+      centerX = getWidth() / 2f;
+      centerY = getHeight() / 2f;
+      baseRadius = Math.max(dp(40), Math.min(getWidth(), getHeight()) * 0.39f);
+      float maxDisplayRadius = gameTouchController.getMoveRadius();
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
-        case MotionEvent.ACTION_MOVE:
           active = true;
-          float dx = event.getX() - centerX, dy = event.getY() - centerY;
-          float distance = (float)Math.sqrt(dx * dx + dy * dy);
-          float max = Math.max(1f, baseRadius);
-          if (distance > max) { dx *= max / distance; dy *= max / distance; }
-          knobX = centerX + dx; knobY = centerY + dy;
-          updateHeldKeys(dx / max, dy / max);
+          knobX = centerX;
+          knobY = centerY;
+          gameTouchController.press("move", gameTouchController.pointFor("move"));
+          invalidate();
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          if (!active) return true;
+          float dx = event.getX() - centerX;
+          float dy = event.getY() - centerY;
+          float distance = (float) Math.sqrt(dx * dx + dy * dy);
+          float visualLimit = Math.max(1f, baseRadius);
+          if (distance > visualLimit) { dx *= visualLimit / distance; dy *= visualLimit / distance; }
+          knobX = centerX + dx;
+          knobY = centerY + dy;
+          float nx = dx / visualLimit;
+          float ny = dy / visualLimit;
+          float[] origin = gameTouchController.pointFor("move");
+          gameTouchController.move("move",
+              origin[0] + nx * maxDisplayRadius,
+              origin[1] + ny * maxDisplayRadius);
           invalidate();
           return true;
         case MotionEvent.ACTION_UP:
         case MotionEvent.ACTION_CANCEL:
           active = false;
-          releaseAllKeys();
+          gameTouchController.release("move");
           invalidate();
           return true;
       }
       return true;
     }
-
-    private void updateHeldKeys(float x, float y) {
-      java.util.HashSet<Integer> next = new java.util.HashSet<>();
-      float dead = 0.28f;
-      if (y < -dead) next.add(KeyEvent.KEYCODE_W);
-      if (y > dead) next.add(KeyEvent.KEYCODE_S);
-      if (x < -dead) next.add(KeyEvent.KEYCODE_A);
-      if (x > dead) next.add(KeyEvent.KEYCODE_D);
-      for (int key : new java.util.HashSet<>(heldKeys)) if (!next.contains(key)) emitHeldKey(key, KeyEvent.ACTION_UP);
-      for (int key : next) if (!heldKeys.contains(key)) emitHeldKey(key, KeyEvent.ACTION_DOWN);
-      heldKeys.clear();
-      heldKeys.addAll(next);
-    }
-
-    private void releaseAllKeys() {
-      for (int key : new java.util.HashSet<>(heldKeys)) emitHeldKey(key, KeyEvent.ACTION_UP);
-      heldKeys.clear();
-    }
-
-    private void emitHeldKey(int keyCode, int action) {
-      if (rootMode) {
-        // Root shell input keyevent is tap-only and cannot reliably hold a key.
-        if (action == KeyEvent.ACTION_DOWN) sendKey(keyCode, false);
-        return;
-      }
-      long now = android.os.SystemClock.uptimeMillis();
-      inject(new KeyEvent(now, now, action, keyCode, 0));
-    }
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
     TextView note = new TextView(this);
-    note.setText("AKSI / SERANG");
+    note.setText("SENTUHAN MOBA · TAP / TAHAN / BIDIK");
     note.setTextColor(Color.rgb(174, 207, 245));
-    note.setTextSize(10);
+    note.setTextSize(9);
     note.setGravity(Gravity.CENTER);
-    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(24)));
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(28)));
+
     LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER);
-    addGameButton(row1, "Y", 1f, KeyEvent.KEYCODE_I);
-    addGameButton(row1, "X", 1f, KeyEvent.KEYCODE_U);
-    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(66)));
+    addTouchGameButton(row1, "SERANG", 1.15f, "attack", false);
+    addTouchGameButton(row1, "S1", 0.85f, "skill1", true);
+    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(58)));
+
     LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
-    addGameButton(row2, "B", 1f, KeyEvent.KEYCODE_K);
-    addGameButton(row2, "A", 1f, KeyEvent.KEYCODE_J);
-    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(66)));
+    addTouchGameButton(row2, "S2", 1f, "skill2", true);
+    addTouchGameButton(row2, "S3", 1f, "skill3", true);
+    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(58)));
+
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
-    addGameButton(row3, "R1", 1f, KeyEvent.KEYCODE_O);
-    addGameButton(row3, "R2", 1f, KeyEvent.KEYCODE_P);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(52)));
+    addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
+    addTouchGameButton(row3, "SPELL", 1f, "spell", false);
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(58)));
+
     Button back = new Button(this);
     back.setText("Kembali ke keyboard + trackpad");
     back.setAllCaps(false); back.setTextSize(10); styleButton(back, false);
-    back.setOnClickListener(v -> { gamepadMode = false; rebuildKeyboard(); });
+    back.setOnClickListener(v -> {
+      gameTouchController.releaseAll();
+      gamepadMode = false;
+      rebuildKeyboard();
+    });
     panel.addView(back, new LinearLayout.LayoutParams(-1, dp(42)));
+
+    TextView footnote = new TextView(this);
+    footnote.setText("Tata letak sentuh standar MOBA. Posisi HUD tiap game mungkin berbeda.");
+    footnote.setTextColor(Color.rgb(174, 207, 245));
+    footnote.setTextSize(8);
+    footnote.setGravity(Gravity.CENTER);
+    panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(32)));
   }
 
-  private void addGameButton(LinearLayout row, String label, float weight, int keyCode) {
+  private void addTouchGameButton(LinearLayout row, String label, float weight,
+      String role, boolean aimable) {
     Button b = new Button(this);
-    b.setText(label); b.setAllCaps(false); b.setTextSize(14);
+    b.setText(label); b.setAllCaps(false); b.setTextSize(aimable ? 12 : 10);
     b.setMinWidth(0); b.setMinimumWidth(0);
     b.setPadding(dp(2), 0, dp(2), 0);
-    styleButton(b, "A".equals(label) || "●".equals(label));
+    styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, weight);
     lp.setMargins(dp(3), dp(3), dp(3), dp(3));
     row.addView(b, lp);
+    final float[] start = new float[2];
     b.setOnTouchListener((v, e) -> {
-      int action = e.getActionMasked();
-      if (rootMode) {
-        // Root input command emits a complete tap; send only once on release.
-        if (action == MotionEvent.ACTION_UP) sendKey(keyCode, false);
-        return true;
-      }
-      if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-        long now = android.os.SystemClock.uptimeMillis();
-        int keyAction = action == MotionEvent.ACTION_DOWN ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP;
-        inject(new KeyEvent(now, now, keyAction, keyCode, 0));
-        return true;
+      switch (e.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          start[0] = e.getX();
+          start[1] = e.getY();
+          float[] down = gameTouchController.pointFor(role);
+          gameTouchController.press(role, down);
+          v.setPressed(true);
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          if (aimable && gameTouchController.isActive(role)) {
+            android.util.DisplayMetrics dm = gameTouchController.metrics();
+            float dx = (e.getX() - start[0]) / Math.max(1f, v.getWidth());
+            float dy = (e.getY() - start[1]) / Math.max(1f, v.getHeight());
+            float[] origin = gameTouchController.pointFor(role);
+            gameTouchController.move(role,
+                origin[0] + dx * dm.widthPixels * 0.22f,
+                origin[1] + dy * dm.heightPixels * 0.22f);
+          }
+          return true;
+        case MotionEvent.ACTION_UP:
+          gameTouchController.release(role);
+          v.setPressed(false);
+          return true;
+        case MotionEvent.ACTION_CANCEL:
+          gameTouchController.release(role);
+          v.setPressed(false);
+          return true;
       }
       return true;
     });
+  }
+
+  private final class GameTouchController {
+    private final java.util.LinkedHashMap<String, GameContact> contacts = new java.util.LinkedHashMap<>();
+    private long downTime = 0L;
+
+    private final class GameContact {
+      final int id;
+      float x;
+      float y;
+      GameContact(int id, float x, float y) { this.id = id; this.x = x; this.y = y; }
+    }
+
+    synchronized boolean isActive(String role) { return contacts.containsKey(role); }
+
+    android.util.DisplayMetrics metrics() {
+      android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+      try {
+        android.hardware.display.DisplayManager displays =
+            (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
+        android.view.Display display = displays != null ? displays.getDisplay(targetDisplayId) : null;
+        if (display != null) {
+          display.getRealMetrics(dm);
+          return dm;
+        }
+      } catch (Throwable e) {
+        State.log("gamepad target display metrics failed: " + e.getMessage());
+      }
+      dm.widthPixels = Math.max(1, getResources().getDisplayMetrics().widthPixels);
+      dm.heightPixels = Math.max(1, getResources().getDisplayMetrics().heightPixels);
+      dm.density = getResources().getDisplayMetrics().density;
+      return dm;
+    }
+
+    float[] pointFor(String role) {
+      android.util.DisplayMetrics dm = metrics();
+      float x;
+      float y;
+      switch (role) {
+        case "move":     x = 0.16f; y = 0.78f; break;
+        case "attack":   x = 0.91f; y = 0.82f; break;
+        case "skill1":   x = 0.78f; y = 0.79f; break;
+        case "skill2":   x = 0.83f; y = 0.68f; break;
+        case "skill3":   x = 0.90f; y = 0.63f; break;
+        case "ultimate": x = 0.96f; y = 0.70f; break;
+        case "spell":    x = 0.70f; y = 0.88f; break;
+        case "recall":   x = 0.62f; y = 0.88f; break;
+        default:         x = 0.90f; y = 0.82f; break;
+      }
+      return new float[] {
+        Math.max(0f, Math.min(dm.widthPixels - 1f, dm.widthPixels * x)),
+        Math.max(0f, Math.min(dm.heightPixels - 1f, dm.heightPixels * y))
+      };
+    }
+
+    float getMoveRadius() {
+      android.util.DisplayMetrics dm = metrics();
+      return Math.max(24f, Math.min(dm.widthPixels, dm.heightPixels) * 0.105f);
+    }
+
+    private int pointerIdFor(String role) {
+      switch (role) {
+        case "move": return 0;
+        case "attack": return 1;
+        case "skill1": return 2;
+        case "skill2": return 3;
+        case "skill3": return 4;
+        case "ultimate": return 5;
+        case "spell": return 6;
+        case "recall": return 7;
+        default: return 8;
+      }
+    }
+
+    synchronized boolean press(String role, float[] point) {
+      if (point == null || contacts.containsKey(role)) return false;
+      long now = android.os.SystemClock.uptimeMillis();
+      if (contacts.isEmpty()) downTime = now;
+      int action;
+      if (contacts.isEmpty()) {
+        action = MotionEvent.ACTION_DOWN;
+      } else {
+        action = MotionEvent.ACTION_POINTER_DOWN | (contacts.size() << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+      }
+      contacts.put(role, new GameContact(pointerIdFor(role), point[0], point[1]));
+      return injectContacts(action);
+    }
+
+    synchronized boolean move(String role, float x, float y) {
+      GameContact contact = contacts.get(role);
+      if (contact == null) return false;
+      android.util.DisplayMetrics dm = metrics();
+      contact.x = Math.max(0f, Math.min(dm.widthPixels - 1f, x));
+      contact.y = Math.max(0f, Math.min(dm.heightPixels - 1f, y));
+      return injectContacts(MotionEvent.ACTION_MOVE);
+    }
+
+    synchronized boolean release(String role) {
+      if (!contacts.containsKey(role)) return false;
+      int index = 0;
+      for (String key : contacts.keySet()) {
+        if (key.equals(role)) break;
+        index++;
+      }
+      int action = contacts.size() == 1 ? MotionEvent.ACTION_UP
+          : MotionEvent.ACTION_POINTER_UP | (index << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
+      boolean accepted = injectContacts(action);
+      contacts.remove(role);
+      if (contacts.isEmpty()) downTime = 0L;
+      return accepted;
+    }
+
+    synchronized void releaseAll() {
+      for (String role : new java.util.ArrayList<>(contacts.keySet())) release(role);
+    }
+
+    private boolean injectContacts(int action) {
+      IInputManager manager = getActiveInputManager();
+      if (manager == null) {
+        State.log("gamepad touch unavailable: InputManager unavailable; grant Shizuku input permission");
+        return false;
+      }
+      int count = contacts.size();
+      if (count == 0) return false;
+      MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[count];
+      MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[count];
+      int index = 0;
+      for (GameContact contact : contacts.values()) {
+        properties[index] = new MotionEvent.PointerProperties();
+        properties[index].id = contact.id;
+        properties[index].toolType = MotionEvent.TOOL_TYPE_FINGER;
+        coords[index] = new MotionEvent.PointerCoords();
+        coords[index].x = contact.x;
+        coords[index].y = contact.y;
+        coords[index].pressure = 1f;
+        coords[index].size = 1f;
+        index++;
+      }
+      long now = android.os.SystemClock.uptimeMillis();
+      MotionEvent event = MotionEvent.obtain(
+          downTime == 0L ? now : downTime, now, action, count,
+          properties, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+      try {
+        MotionEventHidden hidden = Refine.unsafeCast(event);
+        hidden.setDisplayId(targetDisplayId);
+        boolean accepted = manager.injectInputEvent(event, 0);
+        if (!accepted) State.log("gamepad touch rejected: display=" + targetDisplayId + ", action=" + action + ", pointers=" + count);
+        return accepted;
+      } catch (Throwable e) {
+        State.log("gamepad touch injection failed: " + e.getMessage());
+        return false;
+      } finally {
+        event.recycle();
+      }
+    }
   }
 
   private void addLandscapeSettingsPanel(LinearLayout panel) {
@@ -1628,6 +1805,7 @@ public class FloatingKeyboardService extends Service {
 
   @Override
   public void onDestroy() {
+    try { gameTouchController.releaseAll(); } catch (Throwable ignored) {}
     if (keyboardView != null && windowManager != null) {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
