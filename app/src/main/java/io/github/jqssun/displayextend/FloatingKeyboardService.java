@@ -394,7 +394,13 @@ public class FloatingKeyboardService extends Service {
     trackpadTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     trackpadTitle.setGravity(Gravity.CENTER_VERTICAL);
     right.addView(trackpadTitle, new LinearLayout.LayoutParams(-1, dp(32)));
-    if (gamepadMode) addLandscapeGamepadRight(right); else addIntegratedTrackpad(right);
+    if (gamepadMode) {
+      View gamepadSpacer = new View(this);
+      right.addView(gamepadSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
+      addLandscapeGamepadRight(right);
+    } else {
+      addIntegratedTrackpad(right);
+    }
     landscapeTrackpadView = right;
     landscapeTrackpadParams = new WindowManager.LayoutParams(
         Math.max(dp(170), Math.round(screenWidth * 0.25f)),
@@ -404,7 +410,7 @@ public class FloatingKeyboardService extends Service {
         PixelFormat.TRANSLUCENT);
     landscapeTrackpadParams.gravity = Gravity.TOP | Gravity.RIGHT;
     landscapeTrackpadParams.x = dp(6);
-    landscapeTrackpadParams.y = gamepadMode ? dp(26) : dp(6);
+    landscapeTrackpadParams.y = dp(6);
 
     try {
       windowManager.addView(keyboardView, params);
@@ -529,17 +535,17 @@ public class FloatingKeyboardService extends Service {
     LinearLayout row1 = new LinearLayout(this); row1.setGravity(Gravity.CENTER);
     addTouchGameButton(row1, "SERANG", 1.15f, "attack", false);
     addTouchGameButton(row1, "S1", 0.85f, "skill1", true);
-    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(58)));
+    panel.addView(row1, new LinearLayout.LayoutParams(-1, dp(62)));
 
     LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
     addTouchGameButton(row2, "S2", 1f, "skill2", true);
     addTouchGameButton(row2, "S3", 1f, "skill3", true);
-    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(58)));
+    panel.addView(row2, new LinearLayout.LayoutParams(-1, dp(62)));
 
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
     addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
     addTouchGameButton(row3, "SPELL", 1f, "spell", true);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(54)));
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(62)));
 
     LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
     addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
@@ -576,10 +582,23 @@ public class FloatingKeyboardService extends Service {
     b.setText(label); b.setAllCaps(false); b.setTextSize(aimable ? 12 : 10);
     b.setMinWidth(0); b.setMinimumWidth(0);
     b.setPadding(dp(2), 0, dp(2), 0);
-    styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, weight);
-    lp.setMargins(dp(3), dp(3), dp(3), dp(3));
-    row.addView(b, lp);
+    if (aimable) {
+      android.graphics.drawable.GradientDrawable circle = new android.graphics.drawable.GradientDrawable();
+      circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+      circle.setColor(Color.rgb(42, 59, 78));
+      circle.setStroke(dp(1), Color.rgb(79, 126, 160));
+      b.setBackground(circle);
+      b.setTextColor(Color.rgb(235, 243, 255));
+      b.setElevation(dp(2));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(54), dp(54));
+      lp.setMargins(dp(4), dp(2), dp(4), dp(2));
+      row.addView(b, lp);
+    } else {
+      styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, weight);
+      lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+      row.addView(b, lp);
+    }
     final float[] start = new float[2];
     b.setOnTouchListener((v, e) -> {
       switch (e.getActionMasked()) {
