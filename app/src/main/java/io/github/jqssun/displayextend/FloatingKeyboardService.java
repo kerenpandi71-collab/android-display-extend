@@ -784,7 +784,7 @@ public class FloatingKeyboardService extends Service {
       paint.setColor(Color.rgb(24, 38, 57));
       canvas.drawCircle(cx, cy, radius, paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
-      paint.setStrokeWidth(dp(1.5f));
+      paint.setStrokeWidth(dp(2));
       paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(77, 143, 183));
       canvas.drawCircle(cx, cy, radius, paint);
       paint.setStyle(android.graphics.Paint.Style.FILL);
@@ -823,9 +823,10 @@ public class FloatingKeyboardService extends Service {
           if (distance > limit) { dx *= limit / distance; dy *= limit / distance; }
           knobX = cx + dx; knobY = cy + dy;
           float nx = dx / limit, ny = dy / limit;
-          float maxTravel = Math.max(dp(24), Math.min(dm.widthPixels, dm.heightPixels) * 0.16f);
-          float targetX = Math.max(0f, Math.min(dm.widthPixels - 1f, origin[0] + nx * maxTravel));
-          float targetY = Math.max(0f, Math.min(dm.heightPixels - 1f, origin[1] + ny * maxTravel));
+          android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+          float maxTravel = Math.max(dp(24), Math.min(metrics.widthPixels, metrics.heightPixels) * 0.16f);
+          float targetX = Math.max(0f, Math.min(metrics.widthPixels - 1f, origin[0] + nx * maxTravel));
+          float targetY = Math.max(0f, Math.min(metrics.heightPixels - 1f, origin[1] + ny * maxTravel));
           gameTouchController.moveSmooth(role, targetX, targetY);
           invalidate();
           return true;
