@@ -70,6 +70,7 @@ public class FloatingKeyboardService extends Service {
   private boolean capsEnabled = false;
   private boolean ctrlEnabled = false;
   private boolean altEnabled = false;
+  private boolean symbolsMode = false;
 
   @Override
   public void onCreate() {
@@ -318,11 +319,17 @@ public class FloatingKeyboardService extends Service {
       addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
     } else {
-      // Ergonomic Indonesian QWERTY: larger letter keys, staggered rows,
-      // dedicated shift/backspace, punctuation and a wide space bar.
-      addTypingRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
-      addTypingRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
-      addTypingActionRow(panel, new String[] {"Shift","z","x","c","v","b","n","m","⌫"});
+      // Default is Indonesian QWERTY. The symbol switch exposes numbers and
+      // punctuation on the same panel without sacrificing the trackpad.
+      if (symbolsMode) {
+        addTypingRow(panel, new String[] {"1","2","3","4","5","6","7","8","9","0"});
+        addTypingRow(panel, new String[] {"@","#","$","%","&","-","+","(",")","/"});
+        addTypingRow(panel, new String[] {"*","\\"","' ",":",";","!","?",".",",","⌫"});
+      } else {
+        addTypingRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+        addTypingRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+        addTypingActionRow(panel, new String[] {"Shift","z","x","c","v","b","n","m","⌫"});
+      }
       addIndonesianBottomRow(panel);
       addIntegratedControls(panel);
       addIntegratedTrackpad(panel);
@@ -410,9 +417,9 @@ public class FloatingKeyboardService extends Service {
   private void addIndonesianBottomRow(LinearLayout panel) {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
-    addKey(row, "?123", () -> {
-      // Show number/symbol shortcuts without changing the QWERTY letter order.
-      Toast.makeText(this, "Angka: gunakan baris angka di mode Simbol pada Pengaturan", Toast.LENGTH_SHORT).show();
+    addKey(row, symbolsMode ? "ABC" : "?123", () -> {
+      symbolsMode = !symbolsMode;
+      rebuildKeyboard();
     }, 1.35f);
     addKey(row, ",", () -> sendText(","), 0.8f);
     addKey(row, "Space", () -> sendText(" "), 4.2f);
