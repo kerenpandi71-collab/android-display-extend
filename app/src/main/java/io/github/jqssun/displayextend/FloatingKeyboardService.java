@@ -318,14 +318,68 @@ public class FloatingKeyboardService extends Service {
       addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
     } else {
-      addRow(panel, new String[] {"Esc","F1","F2","F3","F4","F5","F6"});
-      addRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p"});
-      addRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l"});
-      addBottomRow(panel, "Shift", "z", "x", "c", "⌫");
-      addBottomRow(panel, "Ctrl", "Fn", "Alt", "Space", "Enter");
+      // Full compact PC keyboard: function keys, number/symbol row, QWERTY,
+      // modifiers, navigation cluster and a wide space bar, while keeping
+      // the trackpad attached to the same floating panel.
+      addSpecialKeyRow(panel, new String[] {"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"});
+      addRow(panel, new String[] {"`","1","2","3","4","5","6","7","8","9","0","-","=","⌫"});
+      addRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p","[","]","\\\\"});
+      addRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l",";","'","Enter"});
+      addRow(panel, new String[] {"Shift","z","x","c","v","b","n","m",",",".","/","↑"});
+      addNavigationModifierRow(panel);
       addIntegratedControls(panel);
       addIntegratedTrackpad(panel);
     }
+  }
+
+  private void addSpecialKeyRow(LinearLayout panel, String[] keys) {
+    LinearLayout row = new LinearLayout(this);
+    for (String key : keys) {
+      float weight = "Esc".equals(key) ? 1.35f : 1f;
+      addKey(row, key, () -> {
+        int code;
+        if ("Esc".equals(key)) code = KeyEvent.KEYCODE_ESCAPE;
+        else {
+          try { code = KeyEvent.KEYCODE_F1 + Integer.parseInt(key.substring(1)) - 1; }
+          catch (Exception ex) { code = KeyEvent.KEYCODE_UNKNOWN; }
+        }
+        if (code != KeyEvent.KEYCODE_UNKNOWN) sendKey(code, false);
+      }, weight);
+    }
+    panel.addView(row);
+  }
+
+  private void addNavigationModifierRow(LinearLayout panel) {
+    LinearLayout row = new LinearLayout(this);
+    String[] keys = {"Ctrl","Fn","Alt","←","↓","→","Home","End","Space","Enter"};
+    for (String key : keys) {
+      float weight = "Space".equals(key) ? 2.6f : 1f;
+      addKey(row, key, () -> {
+        switch (key) {
+          case "Ctrl":
+            ctrlEnabled = !ctrlEnabled;
+            Toast.makeText(this, ctrlEnabled ? "Ctrl aktif" : "Ctrl nonaktif", Toast.LENGTH_SHORT).show();
+            break;
+          case "Alt":
+            altEnabled = !altEnabled;
+            Toast.makeText(this, altEnabled ? "Alt aktif" : "Alt nonaktif", Toast.LENGTH_SHORT).show();
+            break;
+          case "Fn":
+            keyboardLayout = keyboardLayout == 4 ? 5 : 4;
+            keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+            rebuildKeyboard();
+            break;
+          case "←": sendKey(KeyEvent.KEYCODE_DPAD_LEFT, false); break;
+          case "↓": sendKey(KeyEvent.KEYCODE_DPAD_DOWN, false); break;
+          case "→": sendKey(KeyEvent.KEYCODE_DPAD_RIGHT, false); break;
+          case "Home": sendKey(KeyEvent.KEYCODE_MOVE_HOME, false); break;
+          case "End": sendKey(KeyEvent.KEYCODE_MOVE_END, false); break;
+          case "Space": sendText(" "); break;
+          case "Enter": sendKey(KeyEvent.KEYCODE_ENTER, false); break;
+        }
+      }, weight);
+    }
+    panel.addView(row);
   }
 
   private void addIntegratedControls(LinearLayout panel) {
