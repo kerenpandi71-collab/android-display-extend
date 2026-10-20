@@ -87,6 +87,7 @@ public class FloatingKeyboardService extends Service {
   private WindowManager visualMappingWindowManager;
   private WindowManager.LayoutParams visualMappingMarkerParams;
   private String visualMappingRole;
+  private Button visualMappingButton;
   private float visualMappingDragRawX, visualMappingDragRawY;
   private int visualMappingDragOriginX, visualMappingDragOriginY;
 
@@ -158,6 +159,7 @@ public class FloatingKeyboardService extends Service {
       marker.setContentDescription("Penanda mapping " + label + ". Seret untuk memindahkan, ketuk Simpan posisi di panel.");
       visualMappingRole = role;
       visualMappingMarkerView = marker;
+      if (visualMappingButton != null) visualMappingButton.setText("SIMPAN POSISI PENANDA");
       android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
       target.getRealMetrics(dm);
       float[] point = gameTouchController.pointFor(role);
@@ -196,8 +198,7 @@ public class FloatingKeyboardService extends Service {
             float nx = metrics.widthPixels > 0 ? centerX / metrics.widthPixels : 0f;
             float ny = metrics.heightPixels > 0 ? centerY / metrics.heightPixels : 0f;
             updateGamepadCoordinateIndicator(visualMappingRole, centerX, centerY);
-            recordVisualMappingPosition(visualMappingRole, nx, ny, false);
-            return true;
+                    return true;
           }
           case MotionEvent.ACTION_UP:
           case MotionEvent.ACTION_CANCEL:
@@ -265,6 +266,7 @@ public class FloatingKeyboardService extends Service {
     visualMappingMarkerParams = null;
     visualMappingWindowManager = null;
     visualMappingRole = null;
+    if (visualMappingButton != null) visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
   }
 
   private synchronized void recordGamepadDiagnostic(String category, String message) {
@@ -875,17 +877,14 @@ public class FloatingKeyboardService extends Service {
     customize.setOnClickListener(v -> showGamepadCustomization());
     panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(34)));
 
-    Button visualMap = new Button(this);
-    visualMap.setText("MAPPING VISUAL · GESER PENANDA");
-    visualMap.setAllCaps(false); visualMap.setTextSize(10); styleButton(visualMap, true);
-    visualMap.setOnClickListener(v -> showVisualMappingPicker());
-    panel.addView(visualMap, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button saveVisualMap = new Button(this);
-    saveVisualMap.setText("SIMPAN POSISI PENANDA");
-    saveVisualMap.setAllCaps(false); saveVisualMap.setTextSize(10); styleButton(saveVisualMap, false);
-    saveVisualMap.setOnClickListener(v -> saveVisualMappingPosition());
-    panel.addView(saveVisualMap, new LinearLayout.LayoutParams(-1, dp(30)));
+    visualMappingButton = new Button(this);
+    visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
+    visualMappingButton.setAllCaps(false); visualMappingButton.setTextSize(10); styleButton(visualMappingButton, true);
+    visualMappingButton.setOnClickListener(v -> {
+      if (visualMappingMarkerParams != null) saveVisualMappingPosition();
+      else showVisualMappingPicker();
+    });
+    panel.addView(visualMappingButton, new LinearLayout.LayoutParams(-1, dp(32)));
 
     Button autoMap = new Button(this);
     autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
