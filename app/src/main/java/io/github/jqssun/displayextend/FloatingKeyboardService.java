@@ -42,7 +42,9 @@ public class FloatingKeyboardService extends Service {
 
   private WindowManager windowManager;
   private View keyboardView;
+  private View landscapeTrackpadView;
   private WindowManager.LayoutParams params;
+  private WindowManager.LayoutParams landscapeTrackpadParams;
   private int targetDisplayId = 0;
   private boolean rootMode = false;
   private int keyHeightDp = 42;
@@ -134,6 +136,10 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void showKeyboard() {
+    if (getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+      showLandscapeKeyboard();
+      return;
+    }
     LinearLayout panel = new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
     panel.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -210,10 +216,137 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
+  /**
+   * Landscape mode uses two independent overlay windows so the virtual display
+   * remains visible and touchable in the center between the keyboard and pad.
+   */
+  private void showLandscapeKeyboard() {
+    final float density = getResources().getDisplayMetrics().density;
+    final int screenWidth = getResources().getDisplayMetrics().widthPixels;
+    final int screenHeight = getResources().getDisplayMetrics().heightPixels;
+    LinearLayout left = new LinearLayout(this);
+    left.setOrientation(LinearLayout.VERTICAL);
+    left.setPadding(dp(5), dp(5), dp(5), dp(5));
+    left.setBackground(createPanelBackground());
+    left.setClipToPadding(false);
+
+    LinearLayout titleRow = new LinearLayout(this);
+    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+    TextView title = new TextView(this);
+    title.setText("⌨  Keyboard · QWERTY ID");
+    title.setTextColor(Color.rgb(225, 235, 255));
+    title.setTextSize(12);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    titleRow.addView(title, new LinearLayout.LayoutParams(0, dp(32), 1f));
+    title.setOnTouchListener((v, event) -> {
+      if (params == null || keyboardView == null) return false;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartX = event.getRawX(); dragStartY = event.getRawY();
+          dragOriginX = params.x; dragOriginY = params.y; return true;
+        case MotionEvent.ACTION_MOVE:
+          params.x = Math.max(0, dragOriginX + Math.round(event.getRawX() - dragStartX));
+          params.y = Math.max(0, dragOriginY + Math.round(event.getRawY() - dragStartY));
+          try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+          return true;
+        case MotionEvent.ACTION_UP:
+          verticalOffsetDp = Math.max(0, Math.round(params.y / density));
+          keyboardPrefs.edit().putInt("vertical_offset_dp", verticalOffsetDp).apply();
+          return true;
+      }
+      return true;
+    });
+    Button customize = new Button(this);
+    customize.setText(settingsVisible ? "Tutup" : "⚙");
+    customize.setAllCaps(false);
+    customize.setTextSize(10);
+    styleButton(customize, true);
+    customize.setOnClickListener(v -> { settingsVisible = !settingsVisible; rebuildKeyboard(); });
+    titleRow.addView(customize, new LinearLayout.LayoutParams(dp(42), dp(32)));
+    Button close = new Button(this);
+    close.setText("×");
+    close.setTextSize(14);
+    styleButton(close, false);
+    close.setOnClickListener(v -> stopSelf());
+    titleRow.addView(close, new LinearLayout.LayoutParams(dp(34), dp(32)));
+    left.addView(titleRow);
+
+    if (settingsVisible) {
+      addSettingsPanel(left);
+    } else {
+      int previousHeight = keyHeightDp;
+      keyHeightDp = Math.min(keyHeightDp, 32);
+      addKeyboardLayout(left);
+      keyHeightDp = previousHeight;
+    }
+    keyboardView = left;
+
+    int type = Build.VERSION.SDK_INT >= 26
+        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        : WindowManager.LayoutParams.TYPE_PHONE;
+    params = new WindowManager.LayoutParams(
+        Math.max(dp(260), Math.round(screenWidth * 0.40f)),
+        Math.min(screenHeight - dp(12), WindowManager.LayoutParams.WRAP_CONTENT),
+        type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT);
+    params.gravity = Gravity.TOP | Gravity.LEFT;
+    params.x = dp(6);
+    params.y = dp(6);
+
+    LinearLayout right = new LinearLayout(this);
+    right.setOrientation(LinearLayout.VERTICAL);
+    right.setPadding(dp(5), dp(5), dp(5), dp(5));
+    right.setBackground(createPanelBackground());
+    TextView trackpadTitle = new TextView(this);
+    trackpadTitle.setText("🖱  Trackpad");
+    trackpadTitle.setTextColor(Color.rgb(225, 235, 255));
+    trackpadTitle.setTextSize(12);
+    trackpadTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+    trackpadTitle.setGravity(Gravity.CENTER_VERTICAL);
+    right.addView(trackpadTitle, new LinearLayout.LayoutParams(-1, dp(32)));
+    addIntegratedTrackpad(right);
+    landscapeTrackpadView = right;
+    landscapeTrackpadParams = new WindowManager.LayoutParams(
+        Math.max(dp(170), Math.round(screenWidth * 0.25f)),
+        Math.min(screenHeight - dp(12), WindowManager.LayoutParams.MATCH_PARENT),
+        type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT);
+    landscapeTrackpadParams.gravity = Gravity.TOP | Gravity.RIGHT;
+    landscapeTrackpadParams.x = dp(6);
+    landscapeTrackpadParams.y = dp(6);
+
+    try {
+      windowManager.addView(keyboardView, params);
+      windowManager.addView(landscapeTrackpadView, landscapeTrackpadParams);
+    } catch (Exception e) {
+      State.log("landscape keyboard overlay failed: " + e.getMessage());
+      try { if (keyboardView != null) windowManager.removeView(keyboardView); } catch (Exception ignored) {}
+      try { if (landscapeTrackpadView != null) windowManager.removeView(landscapeTrackpadView); } catch (Exception ignored) {}
+      keyboardView = null;
+      landscapeTrackpadView = null;
+      stopSelf();
+    }
+  }
+
+  private android.graphics.drawable.GradientDrawable createPanelBackground() {
+    android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+    bg.setColor(Color.rgb(12, 19, 32));
+    bg.setCornerRadius(dp(16));
+    bg.setStroke(dp(1), Color.rgb(55, 91, 143));
+    return bg;
+  }
+
   private void rebuildKeyboard() {
     if (keyboardView != null) {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
+    }
+    if (landscapeTrackpadView != null) {
+      try { windowManager.removeView(landscapeTrackpadView); } catch (Exception ignored) {}
+      landscapeTrackpadView = null;
+      landscapeTrackpadParams = null;
     }
     showKeyboard();
   }
@@ -336,7 +469,9 @@ public class FloatingKeyboardService extends Service {
       }
       addIndonesianBottomRow(panel);
       addIntegratedControls(panel);
-      addIntegratedTrackpad(panel);
+      if (getResources().getConfiguration().orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+        addIntegratedTrackpad(panel);
+      }
     }
   }
 
@@ -477,7 +612,8 @@ public class FloatingKeyboardService extends Service {
     bg.setCornerRadius(dp(16));
     bg.setStroke(dp(1), Color.rgb(75, 128, 160));
     pad.setBackground(bg);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(155));
+    int padHeight = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE ? 220 : 155;
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(padHeight));
     lp.setMargins(dp(2), 0, dp(2), dp(4));
     panel.addView(pad, lp);
 
