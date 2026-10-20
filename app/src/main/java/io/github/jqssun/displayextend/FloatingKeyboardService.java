@@ -141,7 +141,7 @@ public class FloatingKeyboardService extends Service {
     LinearLayout titleRow = new LinearLayout(this);
     titleRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView title = new TextView(this);
-    title.setText("EXTENDED DESK  ·  Display " + targetDisplayId + "  ↕");
+    title.setText("DESK  ·  Layar " + targetDisplayId + "  ·  QWERTY ID");
     title.setTextColor(Color.rgb(225, 241, 255));
     title.setTextSize(12);
     title.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -318,15 +318,12 @@ public class FloatingKeyboardService extends Service {
       addGamepadRow(panel, new String[] {"L1", "←", "OK", "→", "R1"});
       addBottomRow(panel, "Select", "L2", "Start", "R2", "Back");
     } else {
-      // Full compact PC keyboard: function keys, number/symbol row, QWERTY,
-      // modifiers, navigation cluster and a wide space bar, while keeping
-      // the trackpad attached to the same floating panel.
-      addSpecialKeyRow(panel, new String[] {"Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12"});
-      addRow(panel, new String[] {"`","1","2","3","4","5","6","7","8","9","0","-","=","⌫"});
-      addRow(panel, new String[] {"Tab","q","w","e","r","t","y","u","i","o","p","[","]","\\\\"});
-      addRow(panel, new String[] {"Caps","a","s","d","f","g","h","j","k","l",";","'","Enter"});
-      addRow(panel, new String[] {"Shift","z","x","c","v","b","n","m",",",".","/","↑"});
-      addNavigationModifierRow(panel);
+      // Ergonomic Indonesian QWERTY: larger letter keys, staggered rows,
+      // dedicated shift/backspace, punctuation and a wide space bar.
+      addTypingRow(panel, new String[] {"q","w","e","r","t","y","u","i","o","p"});
+      addTypingRow(panel, new String[] {"a","s","d","f","g","h","j","k","l"});
+      addTypingActionRow(panel, new String[] {"Shift","z","x","c","v","b","n","m","⌫"});
+      addIndonesianBottomRow(panel);
       addIntegratedControls(panel);
       addIntegratedTrackpad(panel);
     }
@@ -382,6 +379,48 @@ public class FloatingKeyboardService extends Service {
     panel.addView(row);
   }
 
+  private void addTypingRow(LinearLayout panel, String[] keys) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    for (String key : keys) {
+      addKey(row, key, () -> sendText(key), 1f);
+    }
+    panel.addView(row);
+  }
+
+  private void addTypingActionRow(LinearLayout panel, String[] keys) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    for (String key : keys) {
+      float weight = ("Shift".equals(key) || "⌫".equals(key)) ? 1.55f : 1f;
+      addKey(row, key, () -> {
+        if ("Shift".equals(key)) {
+          shiftEnabled = !shiftEnabled;
+          Toast.makeText(this, shiftEnabled ? "Shift aktif" : "Shift nonaktif", Toast.LENGTH_SHORT).show();
+        } else if ("⌫".equals(key)) {
+          sendKey(KeyEvent.KEYCODE_DEL, false);
+        } else {
+          sendText(key);
+        }
+      }, weight);
+    }
+    panel.addView(row);
+  }
+
+  private void addIndonesianBottomRow(LinearLayout panel) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    addKey(row, "?123", () -> {
+      // Show number/symbol shortcuts without changing the QWERTY letter order.
+      Toast.makeText(this, "Angka: gunakan baris angka di mode Simbol pada Pengaturan", Toast.LENGTH_SHORT).show();
+    }, 1.35f);
+    addKey(row, ",", () -> sendText(","), 0.8f);
+    addKey(row, "Space", () -> sendText(" "), 4.2f);
+    addKey(row, ".", () -> sendText("."), 0.8f);
+    addKey(row, "Enter", () -> sendKey(KeyEvent.KEYCODE_ENTER, false), 1.4f);
+    panel.addView(row);
+  }
+
   private void addIntegratedControls(LinearLayout panel) {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
@@ -408,7 +447,7 @@ public class FloatingKeyboardService extends Service {
 
   private void addIntegratedTrackpad(LinearLayout panel) {
     TextView label = new TextView(this);
-    label.setText("TRACKPAD  •  Geser: kursor   •   2 jari: scroll   •   ketuk: klik");
+    label.setText("TRACKPAD  ·  Geser kursor  ·  2 jari scroll  ·  ketuk klik");
     label.setTextColor(Color.rgb(165, 208, 236));
     label.setTextSize(10);
     label.setPadding(dp(4), dp(5), dp(4), dp(7));
@@ -424,7 +463,7 @@ public class FloatingKeyboardService extends Service {
     bg.setCornerRadius(dp(16));
     bg.setStroke(dp(1), Color.rgb(75, 128, 160));
     pad.setBackground(bg);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(230));
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(155));
     lp.setMargins(dp(2), 0, dp(2), dp(4));
     panel.addView(pad, lp);
 
