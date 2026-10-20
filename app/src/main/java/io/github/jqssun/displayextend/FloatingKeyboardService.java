@@ -588,7 +588,12 @@ public class FloatingKeyboardService extends Service {
       @Override public void onStopTrackingTouch(SeekBar s) {}
     });
     loadPosition[0].run();
-    new android.app.AlertDialog.Builder(this).setTitle("Custom tombol & mapping")
+    // This UI is launched from a Service/overlay, not an Activity. Create the
+    // dialog first and assign an overlay window type before show(), otherwise
+    // Android can throw BadTokenException and kill the floating keyboard.
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(
+        this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+      .setTitle("Custom tombol & mapping")
       .setMessage("Mapping menghubungkan tombol overlay ke aksi HUD. Posisi disimpan terpisah per aksi.")
       .setView(content)
       .setPositiveButton("Simpan", (d, w) -> {
@@ -610,7 +615,21 @@ public class FloatingKeyboardService extends Service {
         keyboardPrefs.edit().remove("game_x_" + role).remove("game_y_" + role).apply();
         Toast.makeText(this, "Posisi aksi direset ke bawaan.", Toast.LENGTH_SHORT).show();
       })
-      .setNegativeButton("Batal", null).show();
+      .setNegativeButton("Batal", null)
+      .create();
+    android.view.Window dialogWindow = dialog.getWindow();
+    if (dialogWindow != null) {
+      dialogWindow.setType(android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+      dialogWindow.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL);
+    }
+    try {
+      dialog.show();
+      recordGamepadDiagnostic("CONFIG", "customization dialog shown");
+    } catch (Throwable error) {
+      recordGamepadDiagnostic("CONFIG_ERROR", error.getClass().getSimpleName() + ": " + error.getMessage());
+      State.log("gamepad customization dialog failed: " + error);
+      Toast.makeText(this, "Dialog mapping gagal dibuka: " + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+    }
   }
 
   private float defaultGameX(String role) {
@@ -724,12 +743,15 @@ public class FloatingKeyboardService extends Service {
       row.addView(b, lp);
     }
     final float[] start = new float[2];
+    final float[] aimOrigin = new float[2];
     b.setOnTouchListener((v, e) -> {
       switch (e.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
           start[0] = e.getX();
           start[1] = e.getY();
           float[] down = gameTouchController.pointFor(mappedRole);
+          aimOrigin[0] = down[0];
+          aimOrigin[1] = down[1];
           boolean accepted = gameTouchController.press(mappedRole, down);
           recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
@@ -741,11 +763,17 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_MOVE:
           if (aimable && gameTouchController.isActive(mappedRole)) {
             android.util.DisplayMetrics dm = gameTouchController.metrics();
-            float dx = (e.getX() - start[0]) / Math.max(1f, v.getWidth());
-            float dy = (e.getY() - start[1]) / Math.max(1f, v.getHeight());
-            float[] origin = gameTouchController.pointFor(mappedRole);
-            float targetX = origin[0] + dx * dm.widthPixels * 0.34f;
-            float targetY = origin[1] + dy * dm.heightPixels * 0.34f;
+            // Match the analog stick's normalized, bounded travel. MotionEvent
+            // coordinates can extend far outside a small button while dragging;
+            // multiplying those raw values by the full display caused huge
+            // jumps and hard clamping at the screen edge.
+            float halfW = Math.max(1f, v.getWidth() * 0.5f);
+            float halfH = Math.max(1f, v.getHeight() * 0.5f);
+            float nx = Math.max(-1f, Math.min(1f, (e.getX() - start[0]) / halfW));
+            float ny = Math.max(-1f, Math.min(1f, (e.getY() - start[1]) / halfH));
+            float aimRadius = Math.max(30f, Math.min(dm.widthPixels, dm.heightPixels) * 0.14f);
+            float targetX = Math.max(0f, Math.min(dm.widthPixels - 1f, aimOrigin[0] + nx * aimRadius));
+            float targetY = Math.max(0f, Math.min(dm.heightPixels - 1f, aimOrigin[1] + ny * aimRadius));
             gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
