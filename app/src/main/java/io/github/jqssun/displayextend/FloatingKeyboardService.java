@@ -537,7 +537,7 @@ public class FloatingKeyboardService extends Service {
         filteredDeltaY += POINTER_FILTER_CURRENT * (rawDy - filteredDeltaY);
         float dx = filteredDeltaX;
         float dy = filteredDeltaY;
-        if (Math.abs(dx) + Math.abs(dy) > dp(0.8f)) trackpadMoved = true;
+        if (Math.abs(dx) + Math.abs(dy) > 0.8f) trackpadMoved = true;
 
         android.hardware.display.DisplayManager manager =
             (android.hardware.display.DisplayManager) getSystemService(DISPLAY_SERVICE);
