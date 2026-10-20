@@ -581,6 +581,7 @@ public class FloatingKeyboardService extends Service {
         case "skill3":   x = 0.91f; y = 0.82f; break;
         case "ultimate": x = 0.96f; y = 0.87f; break;
         case "spell":    x = 0.71f; y = 0.93f; break;
+        case "upgrade":  x = 0.70f; y = 0.84f; break;
         case "recall":   x = 0.61f; y = 0.94f; break;
         default:         x = 0.94f; y = 0.87f; break;
       }
