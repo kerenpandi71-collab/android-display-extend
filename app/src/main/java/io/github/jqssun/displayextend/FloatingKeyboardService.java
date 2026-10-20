@@ -701,6 +701,7 @@ public class FloatingKeyboardService extends Service {
 
   private void addTouchGameButton(LinearLayout row, String label, float weight,
       String role, boolean aimable) {
+    final String mappedRole = keyboardPrefs.getString("game_map_" + role, role);
     Button b = new Button(this);
     b.setText(label); b.setAllCaps(false); b.setTextSize(aimable ? 12 : 10);
     b.setMinWidth(0); b.setMinimumWidth(0);
@@ -728,9 +729,9 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_DOWN:
           start[0] = e.getX();
           start[1] = e.getY();
-          float[] down = gameTouchController.pointFor(role);
-          boolean accepted = gameTouchController.press(role, down);
-          recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + role
+          float[] down = gameTouchController.pointFor(mappedRole);
+          boolean accepted = gameTouchController.press(mappedRole, down);
+          recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
               + Math.round(down[1]) + "), display=" + targetDisplayId);
           State.log("gamepad button down: role=" + role + ", accepted=" + accepted
@@ -738,26 +739,26 @@ public class FloatingKeyboardService extends Service {
           v.setPressed(true);
           return true;
         case MotionEvent.ACTION_MOVE:
-          if (aimable && gameTouchController.isActive(role)) {
+          if (aimable && gameTouchController.isActive(mappedRole)) {
             android.util.DisplayMetrics dm = gameTouchController.metrics();
             float dx = (e.getX() - start[0]) / Math.max(1f, v.getWidth());
             float dy = (e.getY() - start[1]) / Math.max(1f, v.getHeight());
-            float[] origin = gameTouchController.pointFor(role);
+            float[] origin = gameTouchController.pointFor(mappedRole);
             float targetX = origin[0] + dx * dm.widthPixels * 0.34f;
             float targetY = origin[1] + dy * dm.heightPixels * 0.34f;
-            gameTouchController.moveSmooth(role, targetX, targetY);
+            gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
         case MotionEvent.ACTION_UP: {
-          boolean releaseAccepted = gameTouchController.release(role);
-          recordGamepadDiagnostic("BUTTON_UP", "label=" + label + ", role=" + role
-              + ", accepted=" + releaseAccepted + ", activeAfter=" + gameTouchController.isActive(role));
+          boolean releaseAccepted = gameTouchController.release(mappedRole);
+          recordGamepadDiagnostic("BUTTON_UP", "label=" + label + ", role=" + mappedRole
+              + ", accepted=" + releaseAccepted + ", activeAfter=" + gameTouchController.isActive(mappedRole));
           v.setPressed(false);
           return true;
         }
         case MotionEvent.ACTION_CANCEL: {
-          boolean cancelAccepted = gameTouchController.release(role);
-          recordGamepadDiagnostic("BUTTON_CANCEL", "label=" + label + ", role=" + role
+          boolean cancelAccepted = gameTouchController.release(mappedRole);
+          recordGamepadDiagnostic("BUTTON_CANCEL", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + cancelAccepted);
           v.setPressed(false);
           return true;
