@@ -730,11 +730,7 @@ public class FloatingKeyboardService extends Service {
     Button autoMap = new Button(this);
     autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
     autoMap.setAllCaps(false); autoMap.setTextSize(10); styleButton(autoMap, true);
-    autoMap.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-        .setTitle("Auto map HUD MLBB")
-        .setMessage("Terapkan preset posisi umum Mobile Legends untuk layar landscape? Posisi HUD tiap akun/perangkat bisa berbeda, jadi periksa dan sesuaikan lewat Atur Posisi / Mapping.")
-        .setPositiveButton("Terapkan", (d, w) -> applyAutoMapMlbb())
-        .setNegativeButton("Batal", null).show());
+    autoMap.setOnClickListener(v -> showAutoMapMlbbDialog());
     panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(34)));
 
     Button diagnostics = new Button(this);
@@ -872,6 +868,36 @@ public class FloatingKeyboardService extends Service {
           return true;
       }
       return true;
+    }
+  }
+
+  private void showAutoMapMlbbDialog() {
+    try {
+      android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+          .setTitle("Auto map HUD MLBB")
+          .setMessage("Terapkan preset posisi umum Mobile Legends untuk layar landscape? Posisi HUD tiap akun/perangkat bisa berbeda, jadi periksa dan sesuaikan lewat Atur Posisi / Mapping.")
+          .setPositiveButton("Terapkan", (d, w) -> {
+            try {
+              applyAutoMapMlbb();
+            } catch (Throwable t) {
+              recordGamepadDiagnostic("AUTO_MAP_ERROR", t.getClass().getSimpleName() + ": " + t.getMessage());
+              State.log("auto map MLBB failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+              Toast.makeText(FloatingKeyboardService.this,
+                  "Auto mapping gagal. Buka Log Diagnosis untuk detail.", Toast.LENGTH_LONG).show();
+            }
+          })
+          .setNegativeButton("Batal", null)
+          .create();
+      if (dialog.getWindow() != null) {
+        dialog.getWindow().setType(Build.VERSION.SDK_INT >= 26
+            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            : WindowManager.LayoutParams.TYPE_PHONE);
+      }
+      dialog.show();
+    } catch (Throwable t) {
+      recordGamepadDiagnostic("AUTO_MAP_DIALOG_ERROR", t.getClass().getSimpleName() + ": " + t.getMessage());
+      State.log("auto map dialog failed: " + t.getClass().getSimpleName() + ": " + t.getMessage());
+      Toast.makeText(this, "Dialog Auto Mapping gagal dibuka. Cek Log Diagnosis.", Toast.LENGTH_LONG).show();
     }
   }
 
