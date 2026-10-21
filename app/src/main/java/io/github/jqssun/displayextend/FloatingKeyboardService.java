@@ -472,7 +472,7 @@ public class FloatingKeyboardService extends Service {
       }
     }
     migration.apply();
-    widthPercent = keyboardPrefs.getInt(orientationPrefKey("width_percent"), keyboardPrefs.getInt(orientationPrefKey("width_percent"), 70));
+    widthPercent = keyboardPrefs.getInt(orientationPrefKey("width_percent"), keyboardPrefs.getInt("width_percent", 70));
     // Older builds defaulted to 96%, which made the landscape keyboard too wide.
     if (widthPercent == 96) {
       widthPercent = 70;
