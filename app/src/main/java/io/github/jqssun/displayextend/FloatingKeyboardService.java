@@ -408,19 +408,6 @@ public class FloatingKeyboardService extends Service {
             Toast.makeText(this, "Log disalin. Tempelkan ke chat untuk dianalisis.", Toast.LENGTH_LONG).show();
           }
         })
-          android.content.Intent share = new android.content.Intent(android.content.Intent.ACTION_SEND);
-          share.setType("text/plain");
-          share.putExtra(android.content.Intent.EXTRA_SUBJECT, "Android Display Extend gamepad diagnostics");
-          share.putExtra(android.content.Intent.EXTRA_TEXT, buildGamepadDiagnosticReport());
-          share.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-          try {
-            startActivity(android.content.Intent.createChooser(share, "Bagikan log diagnosis")
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
-          } catch (Throwable t) {
-            State.log("gamepad diagnostic share failed: " + t.getMessage());
-            Toast.makeText(this, "Gagal membuka menu berbagi log.", Toast.LENGTH_SHORT).show();
-          }
-        })
         .setNegativeButton("Tutup", null)
         .create();
     if (dialog.getWindow() != null && Build.VERSION.SDK_INT >= 26) {
