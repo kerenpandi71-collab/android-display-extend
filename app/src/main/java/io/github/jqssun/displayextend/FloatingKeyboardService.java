@@ -1603,7 +1603,7 @@ public class FloatingKeyboardService extends Service {
       float nx = keyboardPrefs.getFloat(positionPrefix + "x_" + role, defaultFreeGamepadX(i, roles.size()));
       float ny = keyboardPrefs.getFloat(positionPrefix + "y_" + role, defaultFreeGamepadY(i, roles.size()));
       lp.leftMargin = Math.max(0, Math.min(Math.max(0, dp(canvasHeight == 0 ? 0 : 280)), 0));
-      control.setTag("gp2:" + role);
+      control.setTag("gp" + profile + ":" + role);
       canvas.addView(control, lp);
       final View buttonView = control;
       buttonView.post(() -> {
@@ -1649,7 +1649,7 @@ public class FloatingKeyboardService extends Service {
               keyboardPrefs.edit()
                   .putFloat(positionPrefix + "x_" + role, p.leftMargin / (float) maxX)
                   .putFloat(positionPrefix + "y_" + role, p.topMargin / (float) maxY).apply();
-              recordGamepadDiagnostic("GP2_POSITION_SAVED", "role=" + role + ", x=" + p.leftMargin + ", y=" + p.topMargin);
+              recordGamepadDiagnostic("GP" + profile + "_POSITION_SAVED", "role=" + role + ", x=" + p.leftMargin + ", y=" + p.topMargin);
               dragging[0] = false;
               Toast.makeText(FloatingKeyboardService.this, label + " disimpan", Toast.LENGTH_SHORT).show();
               return true;
@@ -1662,7 +1662,7 @@ public class FloatingKeyboardService extends Service {
           case MotionEvent.ACTION_DOWN: {
             float[] point = gameTouchController.pointFor(role);
             boolean accepted = gameTouchController.press(role, point);
-            recordGamepadDiagnostic("GP2_BUTTON_DOWN", "role=" + role + ", accepted=" + accepted);
+            recordGamepadDiagnostic("GP" + profile + "_BUTTON_DOWN", "role=" + role + ", accepted=" + accepted);
             v.setAlpha(0.78f);
             return true;
           }
