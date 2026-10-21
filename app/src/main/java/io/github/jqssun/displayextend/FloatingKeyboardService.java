@@ -619,6 +619,21 @@ public class FloatingKeyboardService extends Service {
   }
 
   /** Portrait gamepad layout: compact right-side overlay with a scrollable control panel. */
+  private void compactPortraitGamepadText(View root) {
+    if (root instanceof TextView) {
+      TextView text = (TextView) root;
+      if (text.getTextSize() / getResources().getDisplayMetrics().scaledDensity > 10.5f) {
+        text.setTextSize(10.5f);
+      }
+    }
+    if (root instanceof android.view.ViewGroup) {
+      android.view.ViewGroup group = (android.view.ViewGroup) root;
+      for (int i = 0; i < group.getChildCount(); i++) {
+        compactPortraitGamepadText(group.getChildAt(i));
+      }
+    }
+  }
+
   private void showPortraitGamepad() {
     final int screenWidth = getResources().getDisplayMetrics().widthPixels;
     final int screenHeight = getResources().getDisplayMetrics().heightPixels;
@@ -689,6 +704,7 @@ public class FloatingKeyboardService extends Service {
     // Portrait movement stick is its own overlay at the bottom-left, independent
     // from the right-side buttons panel so it stays in a familiar MOBA position.
     addLandscapeGamepadRight(controls);
+    compactPortraitGamepadText(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
@@ -781,6 +797,27 @@ public class FloatingKeyboardService extends Service {
     hint.setText("Pengaturan Gamepad Portrait — tersimpan terpisah dari Landscape.");
     hint.setTextColor(Color.rgb(191, 213, 239)); hint.setTextSize(10);
     hint.setPadding(dp(4), dp(4), dp(4), dp(6)); panel.addView(hint);
+    int density = Math.max(1, Math.round(getResources().getDisplayMetrics().density));
+    int analogXdp = keyboardPrefs.getInt("portrait_analog_x", dp(18)) / density;
+    int analogYdp = keyboardPrefs.getInt("portrait_analog_y", dp(34)) / density;
+    addSettingSlider(panel, "Posisi analog dari kiri", analogXdp, 8,
+        Math.max(8, Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density) - 130),
+        value -> {
+          if (portraitMovementStickParams != null && portraitMovementStickView != null) {
+            portraitMovementStickParams.x = dp(value);
+            keyboardPrefs.edit().putInt("portrait_analog_x", portraitMovementStickParams.x).apply();
+            try { windowManager.updateViewLayout(portraitMovementStickView, portraitMovementStickParams); } catch (Exception ignored) {}
+          } else keyboardPrefs.edit().putInt("portrait_analog_x", dp(value)).apply();
+        }, " dp");
+    addSettingSlider(panel, "Jarak analog dari bawah", analogYdp, 8,
+        Math.max(8, Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density) - 150),
+        value -> {
+          if (portraitMovementStickParams != null && portraitMovementStickView != null) {
+            portraitMovementStickParams.y = dp(value);
+            keyboardPrefs.edit().putInt("portrait_analog_y", portraitMovementStickParams.y).apply();
+            try { windowManager.updateViewLayout(portraitMovementStickView, portraitMovementStickParams); } catch (Exception ignored) {}
+          } else keyboardPrefs.edit().putInt("portrait_analog_y", dp(value)).apply();
+        }, " dp");
     LinearLayout modes = new LinearLayout(this); modes.setOrientation(LinearLayout.HORIZONTAL);
     Button keyboard = new Button(this); keyboard.setText("Kembali ke Keyboard"); keyboard.setAllCaps(false); keyboard.setTextSize(10); styleButton(keyboard, false);
     keyboard.setOnClickListener(v -> { if (portraitSettingsDialog != null) portraitSettingsDialog.dismiss(); gamepadMode = false; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply(); settingsVisible = false; rebuildKeyboard(); });
