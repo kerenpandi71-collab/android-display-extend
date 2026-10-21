@@ -1982,12 +1982,24 @@ public class FloatingKeyboardService extends Service {
       styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
       int shapeMode = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       android.graphics.drawable.GradientDrawable triggerShape = new android.graphics.drawable.GradientDrawable();
-      boolean roundNativeControl = "attack".equals(role) || "spell".equals(role);
-      triggerShape.setColor("attack".equals(role)
-          ? Color.rgb(227, 151, 47)
-          : ("ULT".equals(label) ? Color.rgb(111, 211, 244)
-          : (role.startsWith("slot_") ? Color.rgb(24, 38, 57) : Color.rgb(43, 61, 78))));
-      triggerShape.setStroke(dp(2), "attack".equals(role) ? Color.rgb(255, 210, 115)
+      boolean battleSpell = "spell".equals(role)
+          || label.toUpperCase(java.util.Locale.ROOT).contains("FLICKER")
+          || label.toUpperCase(java.util.Locale.ROOT).equals("CC")
+          || label.toUpperCase(java.util.Locale.ROOT).contains("AREA EFEK");
+      boolean roundNativeControl = "attack".equals(role) || battleSpell;
+      if ("attack".equals(role) || battleSpell) {
+        int[] colors = "attack".equals(role)
+            ? new int[] { Color.rgb(255, 219, 112), Color.rgb(207, 111, 24), Color.rgb(105, 52, 19) }
+            : new int[] { Color.rgb(255, 220, 126), Color.rgb(218, 128, 34), Color.rgb(113, 59, 24) };
+        triggerShape.setGradientType(android.graphics.drawable.GradientDrawable.LINEAR_GRADIENT);
+        triggerShape.setOrientation(android.graphics.drawable.GradientDrawable.Orientation.TL_BR);
+        triggerShape.setColors(colors);
+      } else {
+        triggerShape.setColor("ULT".equals(label) ? Color.rgb(111, 211, 244)
+            : (role.startsWith("slot_") ? Color.rgb(24, 38, 57) : Color.rgb(43, 61, 78)));
+      }
+      triggerShape.setStroke(dp(2), ("attack".equals(role) || battleSpell)
+          ? Color.rgb(255, 224, 150)
           : (role.startsWith("slot_") ? Color.rgb(77, 143, 183) : Color.rgb(111, 154, 184)));
       if (shapeMode == 3 || (shapeMode == 0 && roundNativeControl)) {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
