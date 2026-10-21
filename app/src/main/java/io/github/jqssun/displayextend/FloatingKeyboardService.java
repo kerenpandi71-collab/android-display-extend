@@ -119,6 +119,10 @@ public class FloatingKeyboardService extends Service {
         "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
     java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
         "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= 9; i++) {
+      rolesList.add("slot_" + i);
+      labelsList.add(getGameSlotLabel(i));
+    }
     for (int i = 1; i <= getCustomTriggerCount(); i++) {
       String customRole = "custom_" + i;
       rolesList.add(customRole);
@@ -1076,7 +1080,7 @@ public class FloatingKeyboardService extends Service {
     gamepadSettings.setOnClickListener(v -> {
       android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
           .setTitle("Pengaturan gamepad")
-          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Aktifkan / Matikan Mode Atur Posisi"},
+          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol", "Nama 9 Kotak"},
               (dialog, which) -> {
                 switch (which) {
                   case 0:
@@ -1095,9 +1099,8 @@ public class FloatingKeyboardService extends Service {
                     showServiceOverlayDialog(triggerDialog);
                     break;
                   case 4: confirmResetGamepadButtonPositions(); break;
-                  case 5:
-                    showGamepadLayoutEditor();
-                    break;
+                  case 5: showGamepadLayoutEditor(); break;
+                  case 6: showGameSlotNameDialog(); break;
                 }
               }).create();
       showServiceOverlayDialog(settingsDialog);
@@ -1124,50 +1127,66 @@ public class FloatingKeyboardService extends Service {
     note.setTextColor(Color.rgb(174, 207, 245));
     note.setTextSize(9);
     note.setGravity(Gravity.CENTER);
-    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(22)));
+    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(20)));
+
+    LinearLayout specialRow = new LinearLayout(this);
+    specialRow.setGravity(Gravity.CENTER);
+    addTouchGameButton(specialRow, "ULT", 1f, "ultimate", true);
+    addTouchGameButton(specialRow, "SPELL", 1f, "spell", true);
+    int specialHeight = Math.max(gameButtonHeight("ultimate", 54), gameButtonHeight("spell", 54));
+    panel.addView(specialRow, new LinearLayout.LayoutParams(-1, dp(specialHeight)));
 
     TextView aimTitle = new TextView(this);
     aimTitle.setText("ANALOG BIDIK SKILL");
     aimTitle.setTextColor(Color.rgb(174, 207, 245));
     aimTitle.setTextSize(9);
     aimTitle.setGravity(Gravity.CENTER);
-    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(20)));
+    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(18)));
 
     LinearLayout skillSticks = new LinearLayout(this);
     skillSticks.setGravity(Gravity.CENTER);
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    int skillRowHeight = Math.max(gameButtonHeight("skill1", 76),
-        Math.max(gameButtonHeight("skill2", 76), gameButtonHeight("skill3", 76)));
+    int skillRowHeight = Math.max(gameButtonHeight("skill1", 54),
+        Math.max(gameButtonHeight("skill2", 54), gameButtonHeight("skill3", 54)));
     panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(skillRowHeight)));
-
-    LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
-    addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
-    addTouchGameButton(row3, "SPELL", 1f, "spell", true);
-    int ultimateRowHeight = Math.max(gameButtonHeight("ultimate", 54), gameButtonHeight("spell", 54));
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(ultimateRowHeight)));
-
-    LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
-    addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
-    addTouchGameButton(row4, "RECALL", 1f, "recall", false);
-    int utilityRowHeight = Math.max(gameButtonHeight("upgrade", 40), gameButtonHeight("recall", 40));
-    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(utilityRowHeight)));
-
-    // Flexible space pins the primary attack control to the bottom-center.
-    View spacer = new View(this);
-    panel.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1f));
 
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
-    addTouchGameButton(attackRow, "SERANG", 1f, "attack", false);
-    addCustomTriggerButtons(attackRow);
-    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 46)));
-    attackLp.setMargins(dp(4), dp(2), dp(4), dp(4));
+    addTouchGameButton(attackRow, "SERANG", 0f, "attack", false);
+    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 48)));
+    attackLp.setMargins(dp(4), dp(2), dp(4), dp(3));
     panel.addView(attackRow, attackLp);
 
+    TextView slotsTitle = new TextView(this);
+    slotsTitle.setText("9 TOMBOL BEBAS · NAMA BISA DIUBAH");
+    slotsTitle.setTextColor(Color.rgb(174, 207, 245));
+    slotsTitle.setTextSize(8);
+    slotsTitle.setGravity(Gravity.CENTER);
+    panel.addView(slotsTitle, new LinearLayout.LayoutParams(-1, dp(18)));
+
+    String[][] slotRows = {
+      {"slot_1", "slot_2", "slot_3"},
+      {"slot_4", "slot_5", "slot_6"},
+      {"slot_7", "slot_8", "slot_9"}
+    };
+    for (String[] slotRowRoles : slotRows) {
+      LinearLayout row = new LinearLayout(this);
+      row.setGravity(Gravity.CENTER);
+      for (String role : slotRowRoles) {
+        int index = Integer.parseInt(role.substring("slot_".length()));
+        addTouchGameButton(row, getGameSlotLabel(index), 1f, role, false);
+      }
+      int rowHeight = 54;
+      for (String role : slotRowRoles) rowHeight = Math.max(rowHeight, gameButtonHeight(role, 54));
+      LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(rowHeight));
+      rowLp.setMargins(0, dp(1), 0, dp(1));
+      panel.addView(row, rowLp);
+    }
+
     TextView footnote = new TextView(this);
-    footnote.setText("Angka X/Y mengikuti koordinat display target.");
+    footnote.setText("Mapping HUD tiap tombol diatur terpisah melalui Mapping Visual.");
     footnote.setTextColor(Color.rgb(174, 207, 245));
     footnote.setTextSize(8);
     footnote.setGravity(Gravity.CENTER);
@@ -1356,6 +1375,14 @@ public class FloatingKeyboardService extends Service {
         "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
     final java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
         "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= 9; i++) {
+      labelsList.add(getGameSlotLabel(i));
+      rolesList.add("slot_" + i);
+    }
+    for (int i = 1; i <= 9; i++) {
+      labelsList.add(getGameSlotLabel(i));
+      rolesList.add("slot_" + i);
+    }
     for (int i = 1; i <= getCustomTriggerCount(); i++) {
       labelsList.add(getCustomTriggerLabel(i));
       rolesList.add("custom_" + i);
@@ -1669,6 +1696,9 @@ public class FloatingKeyboardService extends Service {
         "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UPGRADE", "RECALL"));
     final java.util.ArrayList<String> roles = new java.util.ArrayList<>(java.util.Arrays.asList(
         "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= 9; i++) {
+      labels.add(getGameSlotLabel(i)); roles.add("slot_" + i);
+    }
     for (int i = 1; i <= getCustomTriggerCount(); i++) {
       labels.add(getCustomTriggerLabel(i)); roles.add("custom_" + i);
     }
@@ -1812,6 +1842,7 @@ public class FloatingKeyboardService extends Service {
     if ("upgrade".equals(role)) return 0.42f;
     if ("recall".equals(role)) return 0.55f;
     if (role.startsWith("custom_")) return 0.88f - (Math.min(3, Integer.parseInt(role.substring(7))-1)*0.13f);
+    if (role.startsWith("slot_")) return new float[] {0.25f, 0.5f, 0.75f}[(Integer.parseInt(role.substring(5))-1)%3];
     return 0.5f;
   }
 
@@ -1819,8 +1850,63 @@ public class FloatingKeyboardService extends Service {
     if ("ultimate".equals(role)) return 0.18f;
     if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) return 0.34f;
     if ("spell".equals(role) || "upgrade".equals(role) || "recall".equals(role)) return 0.56f;
-    if ("attack".equals(role) || role.startsWith("custom_")) return 0.78f;
+    if ("attack".equals(role)) return 0.58f;
+    if (role.startsWith("slot_")) return 0.72f + (((Integer.parseInt(role.substring(5))-1)/3) * 0.09f);
+    if (role.startsWith("custom_")) return 0.78f;
     return 0.5f;
+  }
+
+  private String getGameSlotLabel(int index) {
+    String[] defaults = {"SHOP", "REGEN", "RETRI", "RECALL", "SPELL", "ITEM 1", "ITEM 2", "ITEM 3", "MAP"};
+    if (index < 1 || index > 9) return "SLOT";
+    String value = keyboardPrefs.getString("game_slot_label_" + index, defaults[index - 1]);
+    return value == null || value.trim().isEmpty() ? defaults[index - 1] : value.trim();
+  }
+
+  private void showGameSlotNameDialog() {
+    String[] labels = new String[9];
+    for (int i = 0; i < 9; i++) labels[i] = (i + 1) + ". " + getGameSlotLabel(i + 1);
+    android.widget.Spinner selector = new android.widget.Spinner(this);
+    selector.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+    android.widget.EditText name = new android.widget.EditText(this);
+    name.setSingleLine(true);
+    name.setHint("Contoh: SHOP, REGEN, ITEM");
+    name.setText(getGameSlotLabel(1));
+    name.setSelectAllOnFocus(true);
+    selector.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+        name.setText(getGameSlotLabel(position + 1));
+        name.setSelection(name.length());
+      }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+    });
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(14), dp(8), dp(14), dp(4));
+    TextView hint = new TextView(this);
+    hint.setText("Pilih salah satu dari 9 kotak lalu beri nama. Untuk mengatur lokasi HUD yang disentuh kotak, gunakan Mapping Visual.");
+    hint.setTextSize(12);
+    content.addView(hint);
+    content.addView(selector, new LinearLayout.LayoutParams(-1, dp(46)));
+    content.addView(name, new LinearLayout.LayoutParams(-1, dp(50)));
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Nama 9 kotak gamepad")
+        .setView(content)
+        .setPositiveButton("Simpan nama", null)
+        .setNegativeButton("Batal", null)
+        .create();
+    dialog.setOnShowListener(ignored -> dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+      String value = name.getText() == null ? "" : name.getText().toString().trim();
+      if (value.isEmpty()) { name.setError("Nama tidak boleh kosong"); return; }
+      if (value.length() > 12) { name.setError("Maksimal 12 karakter"); return; }
+      int index = selector.getSelectedItemPosition() + 1;
+      keyboardPrefs.edit().putString("game_slot_label_" + index, value).apply();
+      recordGamepadDiagnostic("GAME_SLOT_RENAME", "slot=" + index + ", label=" + value);
+      dialog.dismiss();
+      rebuildKeyboard();
+      Toast.makeText(this, "Nama kotak " + index + " disimpan.", Toast.LENGTH_SHORT).show();
+    }));
+    showServiceOverlayDialog(dialog);
   }
 
   private void confirmResetGamepadButtonPositions() {
@@ -2061,6 +2147,12 @@ public class FloatingKeyboardService extends Service {
     }
 
     private int pointerIdFor(String role) {
+      if (role != null && role.startsWith("slot_")) {
+        try {
+          int slotIndex = Integer.parseInt(role.substring("slot_".length()));
+          return Math.max(9, Math.min(17, 8 + slotIndex));
+        } catch (NumberFormatException ignored) {}
+      }
       if (role != null && role.startsWith("custom_")) {
         try {
           int customIndex = Integer.parseInt(role.substring("custom_".length()));
