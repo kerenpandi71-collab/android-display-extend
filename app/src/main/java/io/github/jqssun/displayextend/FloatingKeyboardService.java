@@ -418,6 +418,10 @@ public class FloatingKeyboardService extends Service {
       showLandscapeKeyboard();
       return;
     }
+    if (gamepadMode) {
+      showPortraitGamepad();
+      return;
+    }
     LinearLayout panel = new LinearLayout(this);
     panel.setOrientation(LinearLayout.VERTICAL);
     panel.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -490,6 +494,80 @@ public class FloatingKeyboardService extends Service {
       windowManager.addView(keyboardView, params);
     } catch (Exception e) {
       Toast.makeText(this, "Keyboard overlay tidak dapat ditampilkan: " + e.getMessage(), Toast.LENGTH_LONG).show();
+      stopSelf();
+    }
+  }
+
+  /** Portrait gamepad layout: compact right-side overlay with a scrollable control panel. */
+  private void showPortraitGamepad() {
+    final int screenWidth = getResources().getDisplayMetrics().widthPixels;
+    final int screenHeight = getResources().getDisplayMetrics().heightPixels;
+    LinearLayout panel = new LinearLayout(this);
+    panel.setOrientation(LinearLayout.VERTICAL);
+    panel.setPadding(dp(5), dp(5), dp(5), dp(5));
+    panel.setBackground(createPanelBackground());
+
+    LinearLayout titleRow = new LinearLayout(this);
+    titleRow.setGravity(Gravity.CENTER_VERTICAL);
+    TextView title = new TextView(this);
+    title.setText("🎮 Gamepad kanan · Portrait");
+    title.setTextColor(Color.rgb(225, 235, 255));
+    title.setTextSize(11);
+    title.setTypeface(null, android.graphics.Typeface.BOLD);
+    titleRow.addView(title, new LinearLayout.LayoutParams(0, dp(34), 1f));
+    title.setOnTouchListener((v, event) -> {
+      if (params == null || keyboardView == null) return false;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartX = event.getRawX(); dragStartY = event.getRawY();
+          dragOriginX = params.x; dragOriginY = params.y; return true;
+        case MotionEvent.ACTION_MOVE:
+          params.x = Math.max(0, dragOriginX + Math.round(event.getRawX() - dragStartX));
+          params.y = Math.max(0, dragOriginY + Math.round(event.getRawY() - dragStartY));
+          try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+          return true;
+        case MotionEvent.ACTION_UP:
+          keyboardPrefs.edit().putInt("portrait_gamepad_x", params.x)
+              .putInt("portrait_gamepad_y", params.y).apply();
+          return true;
+      }
+      return true;
+    });
+    Button mode = new Button(this);
+    mode.setText("⌨");
+    mode.setAllCaps(false); mode.setTextSize(10); styleButton(mode, false);
+    mode.setOnClickListener(v -> { gamepadMode = false; rebuildKeyboard(); });
+    titleRow.addView(mode, new LinearLayout.LayoutParams(dp(34), dp(32)));
+    Button close = new Button(this);
+    close.setText("×"); close.setAllCaps(false); styleButton(close, false);
+    close.setOnClickListener(v -> stopSelf());
+    titleRow.addView(close, new LinearLayout.LayoutParams(dp(34), dp(32)));
+    panel.addView(titleRow);
+
+    android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+    scroll.setFillViewport(false);
+    scroll.setVerticalScrollBarEnabled(true);
+    LinearLayout controls = new LinearLayout(this);
+    controls.setOrientation(LinearLayout.VERTICAL);
+    addLandscapeGamepadRight(controls);
+    scroll.addView(controls);
+    panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+    int type = Build.VERSION.SDK_INT >= 26
+        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
+    int panelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.62f)), screenWidth);
+    params = new WindowManager.LayoutParams(panelWidth, Math.max(dp(240), screenHeight - dp(12)),
+        type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT);
+    params.gravity = Gravity.TOP | Gravity.RIGHT;
+    params.x = Math.max(0, keyboardPrefs.getInt("portrait_gamepad_x", dp(4)));
+    params.y = Math.max(0, keyboardPrefs.getInt("portrait_gamepad_y", dp(4)));
+    keyboardView = panel;
+    try {
+      windowManager.addView(keyboardView, params);
+    } catch (Exception e) {
+      State.log("portrait gamepad overlay failed: " + e.getMessage());
+      Toast.makeText(this, "Gamepad portrait gagal ditampilkan: " + e.getMessage(), Toast.LENGTH_LONG).show();
       stopSelf();
     }
   }
@@ -907,6 +985,12 @@ public class FloatingKeyboardService extends Service {
     diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
     panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(32)));
 
+    Button resizeControls = new Button(this);
+    resizeControls.setText("UKURAN TOMBOL · RESIZE");
+    resizeControls.setAllCaps(false); resizeControls.setTextSize(10); styleButton(resizeControls, true);
+    resizeControls.setOnClickListener(v -> showControlSizeDialog());
+    panel.addView(resizeControls, new LinearLayout.LayoutParams(-1, dp(32)));
+
     TextView coordinateTitle = new TextView(this);
     coordinateTitle.setText("KOORDINAT TARGET · LIVE");
     coordinateTitle.setTextColor(Color.rgb(174, 207, 245));
@@ -1022,6 +1106,12 @@ public class FloatingKeyboardService extends Service {
     addTrigger.setEnabled(count < 20);
     addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
     panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button manageTriggers = new Button(this);
+    manageTriggers.setText("KELOLA TRIGGER · GANTI NAMA / HAPUS");
+    manageTriggers.setAllCaps(false); manageTriggers.setTextSize(9); styleButton(manageTriggers, false);
+    manageTriggers.setOnClickListener(v -> showManageCustomTriggersDialog());
+    panel.addView(manageTriggers, new LinearLayout.LayoutParams(-1, dp(32)));
   }
 
   private void showAddCustomTriggerDialog() {
@@ -1078,9 +1168,191 @@ public class FloatingKeyboardService extends Service {
     dialog.show();
   }
 
+  private void showManageCustomTriggersDialog() {
+    final int count = getCustomTriggerCount();
+    if (count == 0) {
+      Toast.makeText(this, "Belum ada trigger tambahan untuk dikelola.", Toast.LENGTH_SHORT).show();
+      return;
+    }
+    final String[] labels = new String[count];
+    for (int i = 0; i < count; i++) labels[i] = getCustomTriggerLabel(i + 1);
+    android.widget.Spinner spinner = new android.widget.Spinner(this);
+    spinner.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+    final android.widget.EditText name = new android.widget.EditText(this);
+    name.setSingleLine(true);
+    name.setHint("Nama trigger (maks. 14 karakter)");
+    name.setText(labels[0]);
+    name.setSelectAllOnFocus(true);
+    spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+        name.setText(getCustomTriggerLabel(position + 1));
+        name.setSelection(name.length());
+      }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+    });
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(16), dp(8), dp(16), dp(4));
+    TextView hint = new TextView(this);
+    hint.setText("Pilih trigger yang sudah ada untuk mengganti nama atau menghapusnya. Perubahan berlaku untuk trigger lama maupun yang baru dibuat.");
+    hint.setTextSize(12);
+    content.addView(hint);
+    content.addView(spinner, new LinearLayout.LayoutParams(-1, dp(48)));
+    content.addView(name, new LinearLayout.LayoutParams(-1, dp(52)));
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Kelola trigger")
+        .setView(content)
+        .setPositiveButton("Simpan nama", null)
+        .setNeutralButton("Hapus trigger", null)
+        .setNegativeButton("Batal", null)
+        .create();
+    if (dialog.getWindow() != null && Build.VERSION.SDK_INT >= 26)
+      dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+    dialog.setOnShowListener(ignored -> {
+      dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        String label = name.getText() == null ? "" : name.getText().toString().trim();
+        if (label.isEmpty()) { name.setError("Nama tidak boleh kosong"); return; }
+        if (label.length() > 14) { name.setError("Maksimal 14 karakter"); return; }
+        int index = spinner.getSelectedItemPosition() + 1;
+        keyboardPrefs.edit().putString("custom_trigger_label_" + index, label).apply();
+        recordGamepadDiagnostic("CUSTOM_TRIGGER_RENAME", "role=custom_" + index + ", label=" + label);
+        dialog.dismiss();
+        rebuildKeyboard();
+      });
+      dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+        final int selected = spinner.getSelectedItemPosition() + 1;
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Hapus " + getCustomTriggerLabel(selected) + "?")
+            .setMessage("Tombol ini dan posisi mapping-nya akan dihapus. Trigger lain akan dirapikan urutannya.")
+            .setPositiveButton("Hapus", (confirm, which) -> {
+              deleteCustomTrigger(selected);
+              dialog.dismiss();
+              rebuildKeyboard();
+            })
+            .setNegativeButton("Batal", null)
+            .show();
+      });
+    });
+    dialog.show();
+  }
+
+  private void deleteCustomTrigger(int selected) {
+    int count = getCustomTriggerCount();
+    if (selected < 1 || selected > count) return;
+    android.content.SharedPreferences.Editor edit = keyboardPrefs.edit();
+    for (int i = selected; i < count; i++) {
+      int next = i + 1;
+      edit.putString("custom_trigger_label_" + i, getCustomTriggerLabel(next));
+      edit.putFloat("game_x_custom_" + i, keyboardPrefs.getFloat("game_x_custom_" + next, 0.5f));
+      edit.putFloat("game_y_custom_" + i, keyboardPrefs.getFloat("game_y_custom_" + next, 0.5f));
+      copyIntPreference(edit, "game_btn_w_custom_" + i, "game_btn_w_custom_" + next, 0);
+      copyIntPreference(edit, "game_btn_h_custom_" + i, "game_btn_h_custom_" + next, 0);
+    }
+    edit.remove("custom_trigger_label_" + count);
+    edit.remove("game_x_custom_" + count);
+    edit.remove("game_y_custom_" + count);
+    edit.remove("game_map_custom_" + count);
+    edit.remove("game_btn_w_custom_" + count);
+    edit.remove("game_btn_h_custom_" + count);
+    edit.putInt("custom_trigger_count", count - 1).apply();
+    recordGamepadDiagnostic("CUSTOM_TRIGGER_DELETE", "deleted index=" + selected + ", remaining=" + (count - 1));
+  }
+
+  private void copyIntPreference(android.content.SharedPreferences.Editor edit, String target, String source, int fallback) {
+    edit.putInt(target, keyboardPrefs.getInt(source, fallback));
+  }
+
+  private void showControlSizeDialog() {
+    final java.util.ArrayList<String> labelsList = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
+    final java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= getCustomTriggerCount(); i++) {
+      labelsList.add(getCustomTriggerLabel(i));
+      rolesList.add("custom_" + i);
+    }
+    final String[] labels = labelsList.toArray(new String[0]);
+    final String[] roles = rolesList.toArray(new String[0]);
+    android.widget.Spinner selector = new android.widget.Spinner(this);
+    selector.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+    final TextView widthValue = new TextView(this);
+    final TextView heightValue = new TextView(this);
+    android.widget.SeekBar width = new android.widget.SeekBar(this);
+    width.setMax(220);
+    android.widget.SeekBar height = new android.widget.SeekBar(this);
+    height.setMax(92);
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(16), dp(8), dp(16), dp(4));
+    TextView hint = new TextView(this);
+    hint.setText("Pilih tombol, lalu atur lebar dan tinggi. Lebar 0 berarti otomatis mengikuti baris. Ukuran disimpan per tombol.");
+    hint.setTextSize(12);
+    content.addView(hint);
+    content.addView(selector, new LinearLayout.LayoutParams(-1, dp(48)));
+    content.addView(widthValue);
+    content.addView(width);
+    content.addView(heightValue);
+    content.addView(height);
+    final Runnable refreshLabels = () -> {
+      String role = roles[Math.max(0, selector.getSelectedItemPosition())];
+      int w = keyboardPrefs.getInt("game_btn_w_" + role, 0);
+      int h = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+      width.setProgress(Math.max(0, Math.min(220, w)));
+      height.setProgress(h <= 0 ? 42 : Math.max(28, Math.min(120, h)) - 28);
+      widthValue.setText("Lebar: " + (w == 0 ? "Otomatis" : w + " dp"));
+      heightValue.setText("Tinggi: " + (h <= 0 ? "Default" : h + " dp"));
+    };
+    selector.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) { refreshLabels.run(); }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+    });
+    width.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(android.widget.SeekBar bar, int value, boolean fromUser) {
+        widthValue.setText("Lebar: " + (value == 0 ? "Otomatis" : value + " dp"));
+      }
+      @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+      @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+    });
+    height.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(android.widget.SeekBar bar, int value, boolean fromUser) {
+        heightValue.setText("Tinggi: " + (value + 28) + " dp");
+      }
+      @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+      @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+    });
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Ukuran tombol gamepad")
+        .setView(content)
+        .setPositiveButton("Simpan ukuran", (d, which) -> {
+          String role = roles[Math.max(0, selector.getSelectedItemPosition())];
+          int w = width.getProgress();
+          int h = height.getProgress() + 28;
+          keyboardPrefs.edit().putInt("game_btn_w_" + role, w)
+              .putInt("game_btn_h_" + role, h).apply();
+          recordGamepadDiagnostic("BUTTON_RESIZE", "role=" + role + ", widthDp=" + w + ", heightDp=" + h);
+          rebuildKeyboard();
+        })
+        .setNeutralButton("Reset ukuran", (d, which) -> {
+          String role = roles[Math.max(0, selector.getSelectedItemPosition())];
+          keyboardPrefs.edit().remove("game_btn_w_" + role).remove("game_btn_h_" + role).apply();
+          rebuildKeyboard();
+        })
+        .setNegativeButton("Batal", null)
+        .create();
+    if (dialog.getWindow() != null && Build.VERSION.SDK_INT >= 26)
+      dialog.getWindow().setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+    dialog.show();
+    refreshLabels.run();
+  }
+
   private void addSkillAimStick(LinearLayout row, String label, String role) {
     SkillAimStickView stick = new SkillAimStickView(label, role);
-    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(76), 1f);
+    int customWidth = keyboardPrefs.getInt("game_btn_w_" + role, 0);
+    int customHeight = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+        customWidth > 0 ? dp(customWidth) : 0,
+        dp(customHeight > 0 ? customHeight : 76),
+        customWidth > 0 ? 0f : 1f);
     lp.setMargins(dp(3), dp(2), dp(3), dp(2));
     row.addView(stick, lp);
   }
@@ -1246,6 +1518,8 @@ public class FloatingKeyboardService extends Service {
     b.setText(label); b.setAllCaps(false); b.setTextSize(aimable ? 12 : 10);
     b.setMinWidth(0); b.setMinimumWidth(0);
     b.setPadding(dp(2), 0, dp(2), 0);
+    int customWidth = keyboardPrefs.getInt("game_btn_w_" + role, 0);
+    int customHeight = keyboardPrefs.getInt("game_btn_h_" + role, 0);
     if (aimable) {
       android.graphics.drawable.GradientDrawable circle = new android.graphics.drawable.GradientDrawable();
       circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
@@ -1254,12 +1528,16 @@ public class FloatingKeyboardService extends Service {
       b.setBackground(circle);
       b.setTextColor(Color.rgb(235, 243, 255));
       b.setElevation(dp(2));
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(54), dp(54));
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+          dp(customWidth > 0 ? customWidth : 54), dp(customHeight > 0 ? customHeight : 54));
       lp.setMargins(dp(4), dp(2), dp(4), dp(2));
       row.addView(b, lp);
     } else {
       styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -1, weight);
+      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+          customWidth > 0 ? dp(customWidth) : 0,
+          customHeight > 0 ? dp(customHeight) : -1,
+          customWidth > 0 ? 0f : weight);
       lp.setMargins(dp(3), dp(3), dp(3), dp(3));
       row.addView(b, lp);
     }
