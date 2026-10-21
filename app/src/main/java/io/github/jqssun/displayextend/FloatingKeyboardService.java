@@ -632,6 +632,16 @@ public class FloatingKeyboardService extends Service {
     title.setTextSize(11);
     title.setTypeface(null, android.graphics.Typeface.BOLD);
     titleRow.addView(title, new LinearLayout.LayoutParams(0, dp(34), 1f));
+    Button portraitMode = new Button(this);
+    portraitMode.setText("⌨"); portraitMode.setAllCaps(false); portraitMode.setTextSize(10); styleButton(portraitMode, false);
+    portraitMode.setContentDescription("Kembali ke mode keyboard portrait");
+    portraitMode.setOnClickListener(v -> { gamepadMode = false; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply(); settingsVisible = false; rebuildKeyboard(); });
+    titleRow.addView(portraitMode, new LinearLayout.LayoutParams(dp(34), dp(32)));
+    Button portraitSettings = new Button(this);
+    portraitSettings.setText("⚙"); portraitSettings.setAllCaps(false); portraitSettings.setTextSize(10); styleButton(portraitSettings, true);
+    portraitSettings.setContentDescription("Pengaturan Gamepad portrait");
+    portraitSettings.setOnClickListener(v -> { settingsVisible = !settingsVisible; rebuildKeyboard(); });
+    titleRow.addView(portraitSettings, new LinearLayout.LayoutParams(dp(34), dp(32)));
     title.setOnTouchListener((v, event) -> {
       if (params == null || keyboardView == null) return false;
       switch (event.getActionMasked()) {
@@ -680,7 +690,7 @@ public class FloatingKeyboardService extends Service {
     movementStick.setContentDescription("Analog gerak karakter");
     controls.addView(movementStick, new LinearLayout.LayoutParams(-1, dp(126)));
 
-    addLandscapeGamepadRight(controls);
+    if (settingsVisible) addPortraitGamepadSettings(controls); else addLandscapeGamepadRight(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
     addPortraitGamepadResizeHandles(panel);
@@ -714,6 +724,31 @@ public class FloatingKeyboardService extends Service {
    * Landscape mode uses two independent overlay windows so the virtual display
    * remains visible and touchable in the center between the keyboard and pad.
    */
+  private void addPortraitGamepadSettings(LinearLayout panel) {
+    TextView hint = new TextView(this);
+    hint.setText("Pengaturan Gamepad Portrait — tersimpan terpisah dari Landscape.");
+    hint.setTextColor(Color.rgb(191, 213, 239)); hint.setTextSize(10);
+    hint.setPadding(dp(4), dp(4), dp(4), dp(6)); panel.addView(hint);
+    LinearLayout modes = new LinearLayout(this); modes.setOrientation(LinearLayout.HORIZONTAL);
+    Button keyboard = new Button(this); keyboard.setText("Kembali ke Keyboard"); keyboard.setAllCaps(false); keyboard.setTextSize(10); styleButton(keyboard, false);
+    keyboard.setOnClickListener(v -> { gamepadMode = false; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply(); settingsVisible = false; rebuildKeyboard(); });
+    modes.addView(keyboard, new LinearLayout.LayoutParams(0, dp(40), 1f));
+    Button gamepad = new Button(this); gamepad.setText("Mode Gamepad"); gamepad.setAllCaps(false); gamepad.setTextSize(10); styleButton(gamepad, true);
+    gamepad.setOnClickListener(v -> { gamepadMode = true; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), true).apply(); settingsVisible = false; rebuildKeyboard(); });
+    modes.addView(gamepad, new LinearLayout.LayoutParams(0, dp(40), 1f)); panel.addView(modes);
+    addSettingSlider(panel, "Lebar panel gamepad", Math.round(params != null ? params.width / getResources().getDisplayMetrics().density : 260), 180, Math.max(180, Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density)), value -> {
+      if (params != null && keyboardView != null) { params.width = dp(value); keyboardPrefs.edit().putInt("portrait_gamepad_width", params.width).apply(); try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {} }
+    }, " dp");
+    addSettingSlider(panel, "Tinggi panel gamepad", Math.round(params != null ? params.height / getResources().getDisplayMetrics().density : 420), 240, Math.max(240, Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density) - 24), value -> {
+      if (params != null && keyboardView != null) { params.height = dp(value); keyboardPrefs.edit().putInt("portrait_gamepad_height", params.height).apply(); try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {} }
+    }, " dp");
+    addSettingSlider(panel, "Lebar keyboard portrait", widthPercent, 20, 100, value -> { widthPercent = value; keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), value).apply(); }, "%");
+    addSettingSlider(panel, "Tinggi tombol keyboard portrait", keyHeightDp, 28, 96, value -> { keyHeightDp = value; keyboardPrefs.edit().putInt(orientationPrefKey("key_height_dp"), value).apply(); }, " dp");
+    addSettingSlider(panel, "Posisi keyboard dari atas", verticalOffsetDp, 0, 600, value -> { verticalOffsetDp = value; keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), value).apply(); }, " dp");
+    Button autoMap = new Button(this); autoMap.setText("Auto Map HUD"); autoMap.setAllCaps(false); styleButton(autoMap, false); autoMap.setOnClickListener(v -> showAutoMapMlbbDialog()); panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(38)));
+    Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
+  }
+
   private void addPortraitGamepadResizeHandles(LinearLayout panel) {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
@@ -1595,7 +1630,7 @@ public class FloatingKeyboardService extends Service {
       final String role = roles.get(i);
       final String label = labels.get(i);
       View control;
-      if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role)) {
+      if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role) || "attack".equals(role)) {
         control = new SkillAimStickView(label, role);
       } else {
         TextView button = new TextView(this);
@@ -1613,9 +1648,9 @@ public class FloatingKeyboardService extends Service {
       int heightDp = keyboardPrefs.getInt("game_btn_h_" + role, 0);
       int defaultWidth = ("attack".equals(role) ? 76 : ("ultimate".equals(role) || "spell".equals(role) ? 58 : 52));
       if (role.startsWith("slot_") || role.startsWith("custom_")) defaultWidth = 50;
-      if (role.startsWith("skill") || "spell".equals(role)) defaultWidth = keyboardPrefs.getInt("game_skill_circle_" + role, 96);
+      if (role.startsWith("skill") || "spell".equals(role) || "attack".equals(role)) defaultWidth = keyboardPrefs.getInt("game_skill_circle_" + role, "attack".equals(role) ? 80 : 96);
       int w = dp(widthDp > 0 ? widthDp : defaultWidth);
-      int h = dp(heightDp > 0 ? heightDp : ((role.startsWith("skill") || "spell".equals(role)) ? Math.max(70, defaultWidth) : 48));
+      int h = dp(heightDp > 0 ? heightDp : ((role.startsWith("skill") || "spell".equals(role) || "attack".equals(role)) ? Math.max(70, defaultWidth) : 48));
       w = Math.max(dp(38), Math.min(w, dp(400)));
       h = Math.max(dp(32), Math.min(h, dp(400)));
       android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(w, h);
@@ -1989,7 +2024,7 @@ public class FloatingKeyboardService extends Service {
     content.addView(fontValue);
     content.addView(font);
     TextView circleTitle = new TextView(this);
-    circleTitle.setText("Diameter lingkaran bidik (Skill 1/2/3 dan Spell/Flicker)");
+    circleTitle.setText("Diameter lingkaran bidik (Serang, Skill 1/2/3, Spell/Flicker)");
     content.addView(circleTitle);
     content.addView(circleValue);
     content.addView(circleSize);
@@ -2006,7 +2041,7 @@ public class FloatingKeyboardService extends Service {
       int diameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
       circleSize.setProgress(Math.max(0, Math.min(368, diameter - 32)));
       circleValue.setText("Diameter lingkaran: " + diameter + " dp");
-      circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role));
+      circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role) || "attack".equals(role));
       width.setProgress(Math.max(0, Math.min(220, w)));
       height.setProgress(h <= 0 ? 48 : Math.max(28, Math.min(200, h)) - 28);
       font.setProgress(Math.max(0, Math.min(10, f - 8)));
@@ -2061,7 +2096,7 @@ public class FloatingKeyboardService extends Service {
               .putInt("game_btn_h_" + role, h)
               .putInt("game_btn_font_" + role, f)
               .putInt("game_btn_shape_" + role, sh);
-          if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role)) {
+          if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role) || "attack".equals(role)) {
             editor.putInt("game_skill_circle_" + role, circleSize.getProgress() + 32);
           }
           editor.apply();
