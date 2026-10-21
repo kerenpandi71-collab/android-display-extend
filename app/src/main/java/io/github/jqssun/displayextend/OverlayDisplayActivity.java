@@ -75,6 +75,49 @@ public class OverlayDisplayActivity extends Activity {
       createOverlay();
     });
 
+    TextView renderTitle = new TextView(this);
+    renderTitle.setText("Preset rendering virtual display");
+    renderTitle.setTextSize(16);
+    addGap(root, 12);
+    root.addView(renderTitle);
+    TextView renderHint = new TextView(this);
+    renderHint.setText("Resolusi lebih rendah biasanya lebih ringan. Pilih sesuai kelancaran; preset ini mengatur resolusi/DPI, bukan memaksa FPS layar.");
+    renderHint.setTextSize(12);
+    root.addView(renderHint);
+    LinearLayout renderPresets = new LinearLayout(this);
+    renderPresets.setOrientation(LinearLayout.HORIZONTAL);
+    MaterialButton lightPreset = new MaterialButton(this);
+    lightPreset.setText("Ringan\n1280×720");
+    lightPreset.setTextSize(11);
+    renderPresets.addView(lightPreset, new LinearLayout.LayoutParams(0, -2, 1f));
+    MaterialButton balancedPreset = new MaterialButton(this);
+    balancedPreset.setText("Seimbang\n1600×900");
+    balancedPreset.setTextSize(11);
+    renderPresets.addView(balancedPreset, new LinearLayout.LayoutParams(0, -2, 1f));
+    MaterialButton sharpPreset = new MaterialButton(this);
+    sharpPreset.setText("Tajam\n1920×1080");
+    sharpPreset.setTextSize(11);
+    renderPresets.addView(sharpPreset, new LinearLayout.LayoutParams(0, -2, 1f));
+    root.addView(renderPresets);
+    lightPreset.setOnClickListener(v -> {
+      widthInput.setText("1280");
+      heightInput.setText("720");
+      dpiInput.setText("240");
+      createOverlay();
+    });
+    balancedPreset.setOnClickListener(v -> {
+      widthInput.setText("1600");
+      heightInput.setText("900");
+      dpiInput.setText("240");
+      createOverlay();
+    });
+    sharpPreset.setOnClickListener(v -> {
+      widthInput.setText("1920");
+      heightInput.setText("1080");
+      dpiInput.setText("240");
+      createOverlay();
+    });
+
     MaterialButton create = new MaterialButton(this);
     create.setText(R.string.overlay_create);
     root.addView(create);
