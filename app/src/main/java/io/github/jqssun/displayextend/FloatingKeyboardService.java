@@ -1172,7 +1172,9 @@ public class FloatingKeyboardService extends Service {
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
     addTouchGameButton(attackRow, "SERANG", 0f, "attack", false);
-    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 48)));
+    // A compact circular attack control is closer to the native MLBB attack
+    // button than a full-width rectangular key.
+    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(Math.max(70, gameButtonHeight("attack", 70))));
     attackLp.setMargins(dp(4), dp(2), dp(4), dp(3));
     panel.addView(attackRow, attackLp);
 
@@ -1573,32 +1575,40 @@ public class FloatingKeyboardService extends Service {
       cy = getHeight() / 2f;
       radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
       if (!active) { knobX = cx; knobY = cy; }
-      float left = dp(3), top = dp(3), right = getWidth() - dp(3), bottom = getHeight() - dp(3);
-      float corner = dp(12);
+      // Native-MLBB-inspired control: compact round skill button, dark inset,
+      // metallic rim and a clear label. The whole cell remains touch-sensitive.
+      float buttonRadius = Math.min(dp(29), Math.max(dp(20), Math.min(getWidth() * 0.34f, getHeight() * 0.40f)));
       paint.setStyle(android.graphics.Paint.Style.FILL);
-      paint.setColor(Color.rgb(24, 38, 57));
-      canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
+      paint.setColor(Color.rgb(13, 20, 31));
+      canvas.drawCircle(cx, cy, buttonRadius + dp(3), paint);
+      paint.setColor(active ? Color.rgb(53, 101, 126) : Color.rgb(34, 48, 66));
+      canvas.drawCircle(cx, cy, buttonRadius, paint);
       paint.setStyle(android.graphics.Paint.Style.STROKE);
-      paint.setStrokeWidth(1.5f * getResources().getDisplayMetrics().density);
-      paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(77, 143, 183));
-      canvas.drawRoundRect(left, top, right, bottom, corner, corner, paint);
-      // A crosshair pad communicates swipe-to-aim more clearly than a tiny joystick.
+      paint.setStrokeWidth(dp(2));
+      paint.setColor(active ? Color.rgb(116, 222, 248) : Color.rgb(108, 139, 164));
+      canvas.drawCircle(cx, cy, buttonRadius, paint);
       paint.setStrokeWidth(dp(1));
-      paint.setColor(Color.rgb(77, 111, 139));
-      canvas.drawLine(cx - dp(13), cy, cx + dp(13), cy, paint);
-      canvas.drawLine(cx, cy - dp(13), cx, cy + dp(13), paint);
-      paint.setStyle(android.graphics.Paint.Style.FILL);
-      paint.setColor(active ? Color.rgb(105, 216, 245) : Color.rgb(57, 91, 119));
-      canvas.drawCircle(knobX, knobY, dp(5), paint);
-      paint.setStyle(android.graphics.Paint.Style.STROKE);
-      paint.setStrokeWidth(dp(1));
-      paint.setColor(Color.rgb(167, 202, 255));
-      canvas.drawCircle(knobX, knobY, dp(5), paint);
+      paint.setColor(Color.rgb(68, 91, 113));
+      canvas.drawCircle(cx, cy, buttonRadius - dp(4), paint);
+      // Small central aiming reticle echoes the familiar circular skill controls.
+      paint.setStrokeWidth(dp(1.4f));
+      paint.setColor(Color.rgb(169, 205, 229));
+      canvas.drawCircle(cx, cy, dp(5), paint);
+      canvas.drawLine(cx - dp(10), cy, cx - dp(6), cy, paint);
+      canvas.drawLine(cx + dp(6), cy, cx + dp(10), cy, paint);
+      canvas.drawLine(cx, cy - dp(10), cx, cy - dp(6), paint);
+      canvas.drawLine(cx, cy + dp(6), cx, cy + dp(10), paint);
+      if (active) {
+        paint.setStyle(android.graphics.Paint.Style.FILL);
+        paint.setColor(Color.rgb(105, 216, 245));
+        canvas.drawCircle(knobX, knobY, dp(3), paint);
+      }
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setTextAlign(android.graphics.Paint.Align.CENTER);
-      paint.setTextSize(dp(10));
+      paint.setTextSize(dp(9));
+      paint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
       paint.setColor(Color.rgb(235, 243, 255));
-      canvas.drawText(label, cx, getHeight() - dp(5), paint);
+      canvas.drawText(label, cx, Math.min(getHeight() - dp(3), cy + buttonRadius + dp(12)), paint);
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
@@ -1972,10 +1982,14 @@ public class FloatingKeyboardService extends Service {
       styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
       int shapeMode = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       android.graphics.drawable.GradientDrawable triggerShape = new android.graphics.drawable.GradientDrawable();
-      triggerShape.setColor(("SERANG".equals(label) || "ULT".equals(label))
-          ? Color.rgb(111, 211, 244) : (role.startsWith("slot_") ? Color.rgb(24, 38, 57) : Color.rgb(43, 61, 78)));
-      triggerShape.setStroke(dp(1), role.startsWith("slot_") ? Color.rgb(77, 143, 183) : Color.rgb(79, 126, 160));
-      if (shapeMode == 3) {
+      boolean roundNativeControl = "attack".equals(role) || "spell".equals(role);
+      triggerShape.setColor("attack".equals(role)
+          ? Color.rgb(227, 151, 47)
+          : ("ULT".equals(label) ? Color.rgb(111, 211, 244)
+          : (role.startsWith("slot_") ? Color.rgb(24, 38, 57) : Color.rgb(43, 61, 78))));
+      triggerShape.setStroke(dp(2), "attack".equals(role) ? Color.rgb(255, 210, 115)
+          : (role.startsWith("slot_") ? Color.rgb(77, 143, 183) : Color.rgb(111, 154, 184)));
+      if (shapeMode == 3 || (shapeMode == 0 && roundNativeControl)) {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
       } else {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
@@ -1983,10 +1997,11 @@ public class FloatingKeyboardService extends Service {
       }
       b.setBackgroundTintList(null);
       b.setBackground(triggerShape);
+      boolean compactRound = roundNativeControl && customWidth <= 0 && customHeight <= 0 && shapeMode == 0;
       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-          customWidth > 0 ? dp(customWidth) : 0,
-          customHeight > 0 ? dp(customHeight) : -1,
-          customWidth > 0 ? 0f : weight);
+          customWidth > 0 ? dp(customWidth) : (compactRound ? dp("attack".equals(role) ? 64 : 52) : 0),
+          customHeight > 0 ? dp(customHeight) : (compactRound ? dp("attack".equals(role) ? 64 : 52) : -1),
+          customWidth > 0 || compactRound ? 0f : weight);
       lp.setMargins(dp(3), dp(3), dp(3), dp(3));
       row.addView(b, lp);
     }
