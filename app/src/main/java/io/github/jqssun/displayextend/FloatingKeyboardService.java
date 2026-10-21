@@ -1031,7 +1031,27 @@ public class FloatingKeyboardService extends Service {
     dialog.show();
   }
 
+  /**
+   * Gamepad buttons are visually translated outside their original LinearLayout row
+   * while being repositioned. Android clips children at several container levels by
+   * default (especially rows inside the ScrollView), which makes a button appear cut
+   * off when dragged upward. Disable clipping along this overlay's ancestor chain.
+   */
+  private void allowGamepadButtonOverflow(View view) {
+    View current = view;
+    while (current != null) {
+      if (current instanceof android.view.ViewGroup) {
+        android.view.ViewGroup group = (android.view.ViewGroup) current;
+        group.setClipChildren(false);
+        group.setClipToPadding(false);
+      }
+      android.view.ViewParent parent = current.getParent();
+      current = parent instanceof View ? (View) parent : null;
+    }
+  }
+
   private void addLandscapeGamepadRight(LinearLayout panel) {
+    allowGamepadButtonOverflow(panel);
     Button gamepadSettings = new Button(this);
     gamepadSettings.setText("PENGATURAN GAMEPAD");
     gamepadSettings.setAllCaps(false);
