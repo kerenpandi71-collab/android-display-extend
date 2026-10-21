@@ -1958,8 +1958,8 @@ public class FloatingKeyboardService extends Service {
       int shapeMode = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       android.graphics.drawable.GradientDrawable triggerShape = new android.graphics.drawable.GradientDrawable();
       triggerShape.setColor(("SERANG".equals(label) || "ULT".equals(label))
-          ? Color.rgb(111, 211, 244) : Color.rgb(43, 61, 78));
-      triggerShape.setStroke(dp(1), Color.rgb(79, 126, 160));
+          ? Color.rgb(111, 211, 244) : (role.startsWith("slot_") ? Color.rgb(24, 38, 57) : Color.rgb(43, 61, 78)));
+      triggerShape.setStroke(dp(1), role.startsWith("slot_") ? Color.rgb(77, 143, 183) : Color.rgb(79, 126, 160));
       if (shapeMode == 3) {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
       } else {
