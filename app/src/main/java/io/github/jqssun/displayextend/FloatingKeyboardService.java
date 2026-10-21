@@ -1591,7 +1591,7 @@ public class FloatingKeyboardService extends Service {
       paint.setColor(Color.rgb(68, 91, 113));
       canvas.drawCircle(cx, cy, buttonRadius - dp(4), paint);
       // Small central aiming reticle echoes the familiar circular skill controls.
-      paint.setStrokeWidth(dp(1.4f));
+      paint.setStrokeWidth(1.4f * getResources().getDisplayMetrics().density);
       paint.setColor(Color.rgb(169, 205, 229));
       canvas.drawCircle(cx, cy, dp(5), paint);
       canvas.drawLine(cx - dp(10), cy, cx - dp(6), cy, paint);
