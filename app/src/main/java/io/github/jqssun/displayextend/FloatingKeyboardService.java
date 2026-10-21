@@ -88,6 +88,12 @@ public class FloatingKeyboardService extends Service {
   private boolean altEnabled = false;
   private boolean symbolsMode = false;
   private boolean gamepadMode = false;
+  // Keep keyboard/trackpad preferences independent between portrait and landscape sessions.
+  private boolean landscapeSettings = false;
+
+  private String orientationPrefKey(String key) {
+    return (landscapeSettings ? "landscape_" : "portrait_") + key;
+  }
   private final GameTouchController gameTouchController = new GameTouchController();
   private final java.util.ArrayDeque<String> gamepadDiagnosticLines = new java.util.ArrayDeque<>();
   private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
@@ -453,18 +459,31 @@ public class FloatingKeyboardService extends Service {
     installCrashLogHandler();
     windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
     keyboardPrefs = getSharedPreferences("floating_keyboard", MODE_PRIVATE);
-    widthPercent = keyboardPrefs.getInt("width_percent", 70);
+    landscapeSettings = getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+    // Seed each orientation from legacy values only when its own value is absent.
+    String[] independentKeys = {"width_percent", "key_height_dp", "vertical_offset_dp", "layout", "gamepad_mode"};
+    android.content.SharedPreferences.Editor migration = keyboardPrefs.edit();
+    for (String key : independentKeys) {
+      String scoped = orientationPrefKey(key);
+      if (!keyboardPrefs.contains(scoped) && keyboardPrefs.contains(key)) {
+        Object legacy = keyboardPrefs.getAll().get(key);
+        if (legacy instanceof Integer) migration.putInt(scoped, (Integer) legacy);
+        else if (legacy instanceof Boolean) migration.putBoolean(scoped, (Boolean) legacy);
+      }
+    }
+    migration.apply();
+    widthPercent = keyboardPrefs.getInt(orientationPrefKey("width_percent"), keyboardPrefs.getInt(orientationPrefKey("width_percent"), 70));
     // Older builds defaulted to 96%, which made the landscape keyboard too wide.
     if (widthPercent == 96) {
       widthPercent = 70;
-      keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), widthPercent).apply();
     }
-    keyHeightDp = keyboardPrefs.getInt("key_height_dp", 42);
+    keyHeightDp = keyboardPrefs.getInt(orientationPrefKey("key_height_dp"), 42);
     int screenHeightDp = Math.round(getResources().getDisplayMetrics().heightPixels / getResources().getDisplayMetrics().density);
     int defaultY = Math.max(12, screenHeightDp - (keyHeightDp * 4) - 60 - 12);
-    verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", defaultY);
-    keyboardLayout = keyboardPrefs.getInt("layout", 0);
-    gamepadMode = keyboardPrefs.getBoolean("gamepad_mode", false);
+    verticalOffsetDp = keyboardPrefs.getInt(orientationPrefKey("vertical_offset_dp"), defaultY);
+    keyboardLayout = keyboardPrefs.getInt(orientationPrefKey("layout"), 0);
+    gamepadMode = keyboardPrefs.getBoolean(orientationPrefKey("gamepad_mode"), false);
   }
 
   @Override
@@ -551,7 +570,7 @@ public class FloatingKeyboardService extends Service {
           return true;
         case MotionEvent.ACTION_UP:
           verticalOffsetDp = Math.max(0, Math.round(params.y / getResources().getDisplayMetrics().density));
-          keyboardPrefs.edit().putInt("vertical_offset_dp", verticalOffsetDp).apply();
+          keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), verticalOffsetDp).apply();
           return true;
       }
       return true;
@@ -635,7 +654,7 @@ public class FloatingKeyboardService extends Service {
     title.setContentDescription("Tekan lama untuk beralih ke mode keyboard");
     title.setOnLongClickListener(v -> {
       gamepadMode = false;
-      keyboardPrefs.edit().putBoolean("gamepad_mode", false).apply();
+      keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply();
       rebuildKeyboard();
       return true;
     });
@@ -951,7 +970,7 @@ public class FloatingKeyboardService extends Service {
           return true;
         case MotionEvent.ACTION_UP:
           verticalOffsetDp = Math.max(0, Math.round(params.y / density));
-          keyboardPrefs.edit().putInt("vertical_offset_dp", verticalOffsetDp).apply();
+          keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), verticalOffsetDp).apply();
           return true;
       }
       return true;
@@ -964,7 +983,7 @@ public class FloatingKeyboardService extends Service {
     modeButton.setContentDescription("Ganti mode keyboard atau gamepad");
     modeButton.setOnClickListener(v -> {
       gamepadMode = !gamepadMode;
-      keyboardPrefs.edit().putBoolean("gamepad_mode", gamepadMode).apply();
+      keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), gamepadMode).apply();
       settingsVisible = false;
       rebuildKeyboard();
     });
@@ -1543,7 +1562,7 @@ public class FloatingKeyboardService extends Service {
 
 
   /**
-   * Gamepad 2 uses a single canvas with independent child controls. Each control
+   * Gamepad 1 and 2 use a single canvas with independent child controls. Each control
    * stores its own normalized X/Y, so moving one never shifts neighboring buttons.
    */
   private void addFreePositionGamepadOverlay(LinearLayout panel, int profile) {
@@ -1576,7 +1595,7 @@ public class FloatingKeyboardService extends Service {
       final String role = roles.get(i);
       final String label = labels.get(i);
       View control;
-      if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) {
+      if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role)) {
         control = new SkillAimStickView(label, role);
       } else {
         TextView button = new TextView(this);
@@ -1970,7 +1989,7 @@ public class FloatingKeyboardService extends Service {
     content.addView(fontValue);
     content.addView(font);
     TextView circleTitle = new TextView(this);
-    circleTitle.setText("Diameter lingkaran skill (khusus Skill 1/2/3)");
+    circleTitle.setText("Diameter lingkaran bidik (Skill 1/2/3 dan Spell/Flicker)");
     content.addView(circleTitle);
     content.addView(circleValue);
     content.addView(circleSize);
@@ -1987,7 +2006,7 @@ public class FloatingKeyboardService extends Service {
       int diameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
       circleSize.setProgress(Math.max(0, Math.min(368, diameter - 32)));
       circleValue.setText("Diameter lingkaran: " + diameter + " dp");
-      circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role));
+      circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role));
       width.setProgress(Math.max(0, Math.min(220, w)));
       height.setProgress(h <= 0 ? 48 : Math.max(28, Math.min(200, h)) - 28);
       font.setProgress(Math.max(0, Math.min(10, f - 8)));
@@ -2042,7 +2061,7 @@ public class FloatingKeyboardService extends Service {
               .putInt("game_btn_h_" + role, h)
               .putInt("game_btn_font_" + role, f)
               .putInt("game_btn_shape_" + role, sh);
-          if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) {
+          if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role) || "spell".equals(role)) {
             editor.putInt("game_skill_circle_" + role, circleSize.getProgress() + 32);
           }
           editor.apply();
@@ -2903,12 +2922,12 @@ public class FloatingKeyboardService extends Service {
     panel.addView(hint);
     addSettingSlider(panel, "Lebar keyboard", widthPercent, 35, 100, value -> {
       widthPercent = value;
-      keyboardPrefs.edit().putInt("width_percent", value).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), value).apply();
       updateOverlayWidth();
     }, "%");
     addSettingSlider(panel, "Tinggi tombol keyboard", keyHeightDp, 28, 96, value -> {
       keyHeightDp = value;
-      keyboardPrefs.edit().putInt("key_height_dp", value).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("key_height_dp"), value).apply();
       rebuildKeyboard();
     }, " dp");
     Button apply = new Button(this);
@@ -3049,7 +3068,7 @@ public class FloatingKeyboardService extends Service {
           try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
           return true;
         case MotionEvent.ACTION_UP:
-          keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+          keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), widthPercent).apply();
           return true;
       }
       return true;
@@ -3083,7 +3102,7 @@ public class FloatingKeyboardService extends Service {
           int finalDelta = Math.round((event.getRawY() - dragStartY) /
               Math.max(0.5f, getResources().getDisplayMetrics().density));
           keyHeightDp = Math.max(28, Math.min(96, Math.round(dragOriginY + finalDelta)));
-          keyboardPrefs.edit().putInt("key_height_dp", keyHeightDp).apply();
+          keyboardPrefs.edit().putInt(orientationPrefKey("key_height_dp"), keyHeightDp).apply();
           rebuildKeyboard();
           return true;
       }
@@ -3134,8 +3153,8 @@ public class FloatingKeyboardService extends Service {
       choice.setOnClickListener(v -> {
         keyboardLayout = selected;
         gamepadMode = selected == 3;
-        keyboardPrefs.edit().putInt("layout", keyboardLayout)
-            .putBoolean("gamepad_mode", gamepadMode).apply();
+        keyboardPrefs.edit().putInt(orientationPrefKey("layout"), keyboardLayout)
+            .putBoolean(orientationPrefKey("gamepad_mode"), gamepadMode).apply();
         settingsVisible = false;
         rebuildKeyboard();
       });
@@ -3143,16 +3162,16 @@ public class FloatingKeyboardService extends Service {
     panel.addView(layouts);
     addSettingSlider(panel, "Lebar keyboard", widthPercent, 20, 100, value -> {
       widthPercent = value;
-      keyboardPrefs.edit().putInt("width_percent", widthPercent).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), widthPercent).apply();
       updateOverlayWidth();
     }, "%");
     addSettingSlider(panel, "Tinggi tombol", keyHeightDp, 28, 76, value -> {
       keyHeightDp = value;
-      keyboardPrefs.edit().putInt("key_height_dp", keyHeightDp).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("key_height_dp"), keyHeightDp).apply();
     }, " dp");
     addSettingSlider(panel, "Posisi dari atas", verticalOffsetDp, 0, 600, value -> {
       verticalOffsetDp = value;
-      keyboardPrefs.edit().putInt("vertical_offset_dp", verticalOffsetDp).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), verticalOffsetDp).apply();
       if (params != null) {
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         params.y = dp(verticalOffsetDp);
@@ -3277,7 +3296,7 @@ public class FloatingKeyboardService extends Service {
             break;
           case "Fn":
             keyboardLayout = keyboardLayout == 4 ? 5 : 4;
-            keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+            keyboardPrefs.edit().putInt(orientationPrefKey("layout"), keyboardLayout).apply();
             rebuildKeyboard();
             break;
           case "←": sendKey(KeyEvent.KEYCODE_DPAD_LEFT, false); break;
@@ -3346,7 +3365,7 @@ public class FloatingKeyboardService extends Service {
       // Keep the integrated keyboard + trackpad layout active; this key cycles
       // between the integrated layout and the compact laptop layout.
       keyboardLayout = (keyboardLayout == 4) ? 0 : 4;
-      keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+      keyboardPrefs.edit().putInt(orientationPrefKey("layout"), keyboardLayout).apply();
       rebuildKeyboard();
     }, 1f);
     addKey(row, "⚙", () -> {
