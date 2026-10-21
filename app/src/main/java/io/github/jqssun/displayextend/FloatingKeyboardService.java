@@ -130,9 +130,9 @@ public class FloatingKeyboardService extends Service {
    */
   private void showVisualMappingPicker() {
     java.util.ArrayList<String> labelsList = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
+        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall", "Kunci Hero", "Target Minion", "Target Monster"));
     java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall", "target_hero", "target_minion", "target_monster"));
     for (int i = 1; i <= 9; i++) {
       rolesList.add("slot_" + i);
       labelsList.add(getGameSlotLabel(i));
@@ -745,7 +745,10 @@ public class FloatingKeyboardService extends Service {
     addSettingSlider(panel, "Lebar keyboard portrait", widthPercent, 20, 100, value -> { widthPercent = value; keyboardPrefs.edit().putInt(orientationPrefKey("width_percent"), value).apply(); }, "%");
     addSettingSlider(panel, "Tinggi tombol keyboard portrait", keyHeightDp, 28, 96, value -> { keyHeightDp = value; keyboardPrefs.edit().putInt(orientationPrefKey("key_height_dp"), value).apply(); }, " dp");
     addSettingSlider(panel, "Posisi keyboard dari atas", verticalOffsetDp, 0, 600, value -> { verticalOffsetDp = value; keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), value).apply(); }, " dp");
-    Button autoMap = new Button(this); autoMap.setText("Auto Map HUD"); autoMap.setAllCaps(false); styleButton(autoMap, false); autoMap.setOnClickListener(v -> showAutoMapMlbbDialog()); panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(38)));
+    Button mapHud = new Button(this); mapHud.setText("Pemetaan Tombol / Target HUD"); mapHud.setAllCaps(false); styleButton(mapHud, false); mapHud.setOnClickListener(v -> showVisualMappingPicker()); panel.addView(mapHud, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button sizes = new Button(this); sizes.setText("Ukuran Tombol / Resize"); sizes.setAllCaps(false); styleButton(sizes, false); sizes.setOnClickListener(v -> showControlSizeDialog()); panel.addView(sizes, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button triggers = new Button(this); triggers.setText("Tambah / Kelola Trigger"); triggers.setAllCaps(false); styleButton(triggers, false); triggers.setOnClickListener(v -> new android.app.AlertDialog.Builder(this).setTitle("Trigger").setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> { if (action == 0) showAddCustomTriggerDialog(); else showManageCustomTriggersDialog(); }).show()); panel.addView(triggers, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button autoMap = new Button(this); autoMap.setText("Auto Map HUD"); autoMap.setAllCaps(false); styleButton(autoMap, false); autoMap.setOnClickListener(v -> showAutoMapMlbbDialog()); panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(38)));
     Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
   }
 
@@ -1262,7 +1265,7 @@ public class FloatingKeyboardService extends Service {
 
   private void showGamepadCustomization() {
     final String[] buttons = {"Serang", "S1", "S2", "S3", "Ultimate", "Spell", "Upgrade", "Recall"};
-    final String[] roles = {"attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"};
+    final String[] roles = {"attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall", "target_hero", "target_minion", "target_monster"};
     final android.widget.Spinner buttonSpinner = new android.widget.Spinner(this);
     final android.widget.Spinner targetSpinner = new android.widget.Spinner(this);
     android.widget.ArrayAdapter<String> buttonAdapter = new android.widget.ArrayAdapter<>(this,
@@ -1394,6 +1397,9 @@ public class FloatingKeyboardService extends Service {
   private float defaultGameX(String role) {
     switch (role) {
       case "move": return 0.13f;
+       case "target_hero": return 0.86f;
+       case "target_minion": return 0.86f;
+       case "target_monster": return 0.86f;
       case "skill1": return 0.82f;
       case "skill2": return 0.86f;
       case "skill3": return 0.91f;
@@ -1408,6 +1414,9 @@ public class FloatingKeyboardService extends Service {
   private float defaultGameY(String role) {
     switch (role) {
       case "move": return 0.87f;
+       case "target_hero": return 0.62f;
+       case "target_minion": return 0.68f;
+       case "target_monster": return 0.74f;
       case "skill1": return 0.90f;
       case "skill2": return 0.83f;
       case "skill3": return 0.82f;
@@ -1613,9 +1622,9 @@ public class FloatingKeyboardService extends Service {
     panel.addView(canvas, new LinearLayout.LayoutParams(-1, canvasHeight));
 
     java.util.ArrayList<String> roles = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall", "target_hero", "target_minion", "target_monster"));
     java.util.ArrayList<String> labels = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UP", "RECALL"));
+        "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UP", "RECALL", "HERO", "MINION", "MONSTER"));
     for (int i = 1; i <= 9; i++) {
       roles.add("slot_" + i);
       labels.add(getGameSlotLabel(i));
@@ -1979,9 +1988,9 @@ public class FloatingKeyboardService extends Service {
 
   private void showControlSizeDialog() {
     final java.util.ArrayList<String> labelsList = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
+        "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall", "Kunci Hero", "Target Minion", "Target Monster"));
     final java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall", "target_hero", "target_minion", "target_monster"));
     for (int i = 1; i <= 9; i++) {
       labelsList.add(getGameSlotLabel(i));
       rolesList.add("slot_" + i);
@@ -2330,7 +2339,7 @@ public class FloatingKeyboardService extends Service {
     final java.util.ArrayList<String> labels = new java.util.ArrayList<>(java.util.Arrays.asList(
         "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UPGRADE", "RECALL"));
     final java.util.ArrayList<String> roles = new java.util.ArrayList<>(java.util.Arrays.asList(
-        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall", "target_hero", "target_minion", "target_monster"));
     for (int i = 1; i <= 9; i++) {
       labels.add(getGameSlotLabel(i)); roles.add("slot_" + i);
     }
@@ -2816,6 +2825,9 @@ public class FloatingKeyboardService extends Service {
       switch (role) {
         case "move": return 0;
         case "attack": return 1;
+        case "target_hero": return 18;
+        case "target_minion": return 19;
+        case "target_monster": return 20;
         case "skill1": return 2;
         case "skill2": return 3;
         case "skill3": return 4;
