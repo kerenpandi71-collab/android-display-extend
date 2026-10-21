@@ -1207,7 +1207,8 @@ public class FloatingKeyboardService extends Service {
           .setItems(new String[] {"Profil Gamepad kanan: " + getGamepadProfileLabel(),
               "Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize",
               "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol",
-              "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF")},
+              "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF"),
+              "Mode Edit Overlay Gamepad 2: " + (keyboardPrefs.getBoolean("gp2_edit_mode", false) ? "AKTIF" : "NONAKTIF")},
               (dialog, which) -> {
                 if (which == 0) { showGamepadProfilePicker(); return; }
                 switch (which) {
@@ -1239,6 +1240,16 @@ public class FloatingKeyboardService extends Service {
                     recordGamepadDiagnostic("REPOSITION_HOLD_TOGGLE", "enabled=" + enabled);
                     break;
                   }
+                  case 9: {
+                    boolean enabled = !keyboardPrefs.getBoolean("gp2_edit_mode", false);
+                    keyboardPrefs.edit().putBoolean("gp2_edit_mode", enabled).apply();
+                    Toast.makeText(this, enabled
+                        ? "Edit Gamepad 2 aktif: tahan dan seret tombol. Posisi tersimpan otomatis."
+                        : "Edit Gamepad 2 nonaktif: tombol siap digunakan.", Toast.LENGTH_LONG).show();
+                    recordGamepadDiagnostic("GP2_EDIT_MODE", "enabled=" + enabled);
+                    rebuildKeyboard();
+                    break;
+                  }
                 }
               }).create();
       showServiceOverlayDialog(settingsDialog);
@@ -1249,8 +1260,12 @@ public class FloatingKeyboardService extends Service {
     gamepadCoordinateIndicator = null;
 
     int profile = getGamepadProfile();
-    if (profile == 2 || profile == 3) {
-      // Profiles 2 and 3 are intentionally empty for the user to configure later.
+    if (profile == 2) {
+      addFreePositionGamepad2(panel);
+      return;
+    }
+    if (profile == 3) {
+      // Profile 3 remains an empty slot.
       return;
     }
 
@@ -1300,6 +1315,176 @@ public class FloatingKeyboardService extends Service {
     }
 
    }
+
+
+  /**
+   * Gamepad 2 uses a single canvas with independent child controls. Each control
+   * stores its own normalized X/Y, so moving one never shifts neighboring buttons.
+   */
+  private void addFreePositionGamepad2(LinearLayout panel) {
+    final boolean editMode = keyboardPrefs.getBoolean("gp2_edit_mode", false);
+    android.widget.FrameLayout canvas = new android.widget.FrameLayout(this);
+    canvas.setClipChildren(false);
+    canvas.setClipToPadding(false);
+    canvas.setBackgroundColor(Color.BLACK);
+    int canvasHeight = Math.max(dp(430), Math.min(dp(720),
+        getResources().getDisplayMetrics().heightPixels - dp(110)));
+    panel.addView(canvas, new LinearLayout.LayoutParams(-1, canvasHeight));
+
+    java.util.ArrayList<String> roles = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    java.util.ArrayList<String> labels = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UP", "RECALL"));
+    for (int i = 1; i <= 9; i++) {
+      roles.add("slot_" + i);
+      labels.add(getGameSlotLabel(i));
+    }
+    for (int i = 1; i <= getCustomTriggerCount(); i++) {
+      roles.add("custom_" + i);
+      labels.add(getCustomTriggerLabel(i));
+    }
+
+    // Initial placement leaves room to rearrange every control in edit mode.
+    for (int i = 0; i < roles.size(); i++) {
+      final String role = roles.get(i);
+      final String label = labels.get(i);
+      View control;
+      if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) {
+        control = new SkillAimStickView(label, role);
+      } else {
+        TextView button = new TextView(this);
+        button.setText(label);
+        button.setGravity(Gravity.CENTER);
+        button.setTextColor(Color.rgb(235, 243, 255));
+        button.setTextSize(keyboardPrefs.getInt("game_btn_font_" + role, 9));
+        button.setTypeface(null, android.graphics.Typeface.BOLD);
+        button.setBackground(createFreeGamepadButtonBackground(role));
+        button.setAllCaps(false);
+        control = button;
+      }
+      control.setContentDescription(label + (editMode ? " — tahan lalu geser untuk mengatur posisi" : " — tombol gamepad"));
+      int widthDp = keyboardPrefs.getInt("game_btn_w_" + role, 0);
+      int heightDp = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+      int defaultWidth = ("attack".equals(role) ? 76 : ("ultimate".equals(role) || "spell".equals(role) ? 58 : 52));
+      if (role.startsWith("slot_") || role.startsWith("custom_")) defaultWidth = 50;
+      if (role.startsWith("skill")) defaultWidth = keyboardPrefs.getInt("game_skill_circle_" + role, 96);
+      int w = dp(widthDp > 0 ? widthDp : defaultWidth);
+      int h = dp(heightDp > 0 ? heightDp : (role.startsWith("skill") ? Math.max(70, defaultWidth) : 48));
+      w = Math.max(dp(38), Math.min(w, dp(400)));
+      h = Math.max(dp(32), Math.min(h, dp(400)));
+      android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(w, h);
+      float nx = keyboardPrefs.getFloat("gp2_x_" + role, defaultFreeGamepadX(i, roles.size()));
+      float ny = keyboardPrefs.getFloat("gp2_y_" + role, defaultFreeGamepadY(i, roles.size()));
+      lp.leftMargin = Math.max(0, Math.min(Math.max(0, dp(canvasHeight == 0 ? 0 : 280)), 0));
+      control.setTag("gp2:" + role);
+      canvas.addView(control, lp);
+      final View buttonView = control;
+      buttonView.post(() -> {
+        int maxX = Math.max(0, canvas.getWidth() - buttonView.getWidth());
+        int maxY = Math.max(0, canvas.getHeight() - buttonView.getHeight());
+        android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) buttonView.getLayoutParams();
+        p.leftMargin = Math.max(0, Math.min(maxX, Math.round(nx * maxX)));
+        p.topMargin = Math.max(0, Math.min(maxY, Math.round(ny * maxY)));
+        buttonView.setLayoutParams(p);
+      });
+
+      final float[] dragStart = new float[2];
+      final int[] origin = new int[2];
+      final boolean[] dragging = new boolean[1];
+      buttonView.setOnTouchListener((v, event) -> {
+        if (keyboardPrefs.getBoolean("gp2_edit_mode", false)) {
+          switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+              dragging[0] = true;
+              dragStart[0] = event.getRawX();
+              dragStart[1] = event.getRawY();
+              android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) v.getLayoutParams();
+              origin[0] = p.leftMargin;
+              origin[1] = p.topMargin;
+              v.setAlpha(0.72f);
+              v.bringToFront();
+              return true;
+            case MotionEvent.ACTION_MOVE: {
+              android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) v.getLayoutParams();
+              int maxX = Math.max(0, canvas.getWidth() - v.getWidth());
+              int maxY = Math.max(0, canvas.getHeight() - v.getHeight());
+              p.leftMargin = Math.max(0, Math.min(maxX, origin[0] + Math.round(event.getRawX() - dragStart[0])));
+              p.topMargin = Math.max(0, Math.min(maxY, origin[1] + Math.round(event.getRawY() - dragStart[1])));
+              v.setLayoutParams(p);
+              return true;
+            }
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL: {
+              v.setAlpha(1f);
+              android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) v.getLayoutParams();
+              int maxX = Math.max(1, canvas.getWidth() - v.getWidth());
+              int maxY = Math.max(1, canvas.getHeight() - v.getHeight());
+              keyboardPrefs.edit()
+                  .putFloat("gp2_x_" + role, p.leftMargin / (float) maxX)
+                  .putFloat("gp2_y_" + role, p.topMargin / (float) maxY).apply();
+              recordGamepadDiagnostic("GP2_POSITION_SAVED", "role=" + role + ", x=" + p.leftMargin + ", y=" + p.topMargin);
+              dragging[0] = false;
+              Toast.makeText(FloatingKeyboardService.this, label + " disimpan", Toast.LENGTH_SHORT).show();
+              return true;
+            }
+          }
+          return true;
+        }
+        if (control instanceof SkillAimStickView) return false;
+        switch (event.getActionMasked()) {
+          case MotionEvent.ACTION_DOWN: {
+            float[] point = gameTouchController.pointFor(role);
+            boolean accepted = gameTouchController.press(role, point);
+            recordGamepadDiagnostic("GP2_BUTTON_DOWN", "role=" + role + ", accepted=" + accepted);
+            v.setAlpha(0.78f);
+            return true;
+          }
+          case MotionEvent.ACTION_UP:
+          case MotionEvent.ACTION_CANCEL:
+            gameTouchController.release(role);
+            v.setAlpha(1f);
+            return true;
+        }
+        return true;
+      });
+      if (editMode) {
+        control.setAlpha(0.9f);
+      }
+    }
+    TextView note = new TextView(this);
+    note.setText(editMode ? "MODE EDIT AKTIF · tahan tombol lalu geser · posisi otomatis tersimpan" :
+        "Gamepad 2 · tombol bebas posisi");
+    note.setTextColor(Color.rgb(145, 160, 178));
+    note.setTextSize(9);
+    note.setGravity(Gravity.CENTER);
+    android.widget.FrameLayout.LayoutParams noteLp = new android.widget.FrameLayout.LayoutParams(
+        -1, dp(20), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+    canvas.addView(note, noteLp);
+  }
+
+  private float defaultFreeGamepadX(int index, int count) {
+    // Place controls on a loose grid; users can move any item independently.
+    int columns = 3;
+    int col = index % columns;
+    return 0.06f + col * 0.31f;
+  }
+
+  private float defaultFreeGamepadY(int index, int count) {
+    int row = index / 3;
+    return Math.min(0.84f, 0.06f + row * 0.13f);
+  }
+
+  private android.graphics.drawable.GradientDrawable createFreeGamepadButtonBackground(String role) {
+    android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+    int shape = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
+    if (shape == 1) bg.setCornerRadius(dp(2));
+    else if (shape == 2) bg.setCornerRadius(dp(80));
+    else if (shape == 3) bg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+    else bg.setCornerRadius(dp(12));
+    bg.setColor(Color.rgb(31, 47, 64));
+    bg.setStroke(dp(1), Color.rgb(111, 211, 244));
+    return bg;
+  }
 
   private int getGamepadProfile() {
     return Math.max(1, Math.min(4, keyboardPrefs.getInt("gamepad_right_profile", 1)));
