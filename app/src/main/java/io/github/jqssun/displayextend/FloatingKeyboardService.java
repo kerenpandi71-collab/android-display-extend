@@ -985,6 +985,9 @@ public class FloatingKeyboardService extends Service {
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
     // Keep mapping and diagnostics at the top so they remain reachable on short screens.
+    // Add/manage triggers belong with the top-level settings, not below skill controls.
+    addCustomTriggerControls(panel);
+
     visualMappingButton = new Button(this);
     visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
     visualMappingButton.setAllCaps(false); visualMappingButton.setTextSize(10); styleButton(visualMappingButton, true);
@@ -1055,8 +1058,6 @@ public class FloatingKeyboardService extends Service {
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
     int utilityRowHeight = Math.max(gameButtonHeight("upgrade", 40), gameButtonHeight("recall", 40));
     panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(utilityRowHeight)));
-
-    addCustomTriggerControls(panel);
 
     // Flexible space pins the primary attack control to the bottom-center.
     View spacer = new View(this);
