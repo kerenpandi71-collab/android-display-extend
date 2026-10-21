@@ -1076,7 +1076,7 @@ public class FloatingKeyboardService extends Service {
     gamepadSettings.setOnClickListener(v -> {
       android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
           .setTitle("Pengaturan gamepad")
-          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default"},
+          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Aktifkan / Matikan Mode Atur Posisi"},
               (dialog, which) -> {
                 switch (which) {
                   case 0:
@@ -1095,6 +1095,15 @@ public class FloatingKeyboardService extends Service {
                     showServiceOverlayDialog(triggerDialog);
                     break;
                   case 4: confirmResetGamepadButtonPositions(); break;
+                  case 5:
+                    boolean editMode = !keyboardPrefs.getBoolean("gamepad_edit_mode", false);
+                    keyboardPrefs.edit().putBoolean("gamepad_edit_mode", editMode).apply();
+                    Toast.makeText(FloatingKeyboardService.this,
+                        editMode
+                            ? "MODE ATUR POSISI AKTIF · Sentuh lalu seret tombol. Input game sementara dinonaktifkan."
+                            : "MODE ATUR POSISI NONAKTIF · Tombol kembali mengirim input game.",
+                        Toast.LENGTH_LONG).show();
+                    break;
                 }
               }).create();
       showServiceOverlayDialog(settingsDialog);
@@ -1733,6 +1742,12 @@ public class FloatingKeyboardService extends Service {
           aimOrigin[0] = down[0];
           aimOrigin[1] = down[1];
           updateGamepadCoordinateIndicator(mappedRole, down[0], down[1]);
+          if (keyboardPrefs.getBoolean("gamepad_edit_mode", false)) {
+            // Dedicated layout-edit mode: never send game input while rearranging controls.
+            beginReposition.run();
+            v.setPressed(false);
+            return true;
+          }
           boolean accepted = gameTouchController.press(mappedRole, down);
           recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
