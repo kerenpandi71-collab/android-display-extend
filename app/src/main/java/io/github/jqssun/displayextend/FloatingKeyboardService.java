@@ -1057,17 +1057,6 @@ public class FloatingKeyboardService extends Service {
 
     addCustomTriggerControls(panel);
 
-    Button back = new Button(this);
-    back.setText("Kembali ke keyboard + trackpad");
-    back.setAllCaps(false); back.setTextSize(10); styleButton(back, false);
-    back.setOnClickListener(v -> {
-      gameTouchController.releaseAll();
-      gamepadMode = false;
-      keyboardPrefs.edit().putBoolean("gamepad_mode", false).apply();
-      rebuildKeyboard();
-    });
-    panel.addView(back, new LinearLayout.LayoutParams(-1, dp(34)));
-
     // Flexible space pins the primary attack control to the bottom-center.
     View spacer = new View(this);
     panel.addView(spacer, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -1303,10 +1292,16 @@ public class FloatingKeyboardService extends Service {
     selector.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
     final TextView widthValue = new TextView(this);
     final TextView heightValue = new TextView(this);
+    final TextView fontValue = new TextView(this);
     android.widget.SeekBar width = new android.widget.SeekBar(this);
     width.setMax(220);
     android.widget.SeekBar height = new android.widget.SeekBar(this);
     height.setMax(92);
+    android.widget.SeekBar font = new android.widget.SeekBar(this);
+    font.setMax(10);
+    android.widget.Spinner shape = new android.widget.Spinner(this);
+    final String[] shapeNames = {"Sudut bulat", "Kotak", "Pil", "Lingkaran"};
+    shape.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, shapeNames));
     LinearLayout content = new LinearLayout(this);
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(16), dp(8), dp(16), dp(4));
@@ -1319,14 +1314,25 @@ public class FloatingKeyboardService extends Service {
     content.addView(width);
     content.addView(heightValue);
     content.addView(height);
+    content.addView(fontValue);
+    content.addView(font);
+    TextView shapeTitle = new TextView(this);
+    shapeTitle.setText("Bentuk tombol");
+    content.addView(shapeTitle);
+    content.addView(shape, new LinearLayout.LayoutParams(-1, dp(44)));
     final Runnable refreshLabels = () -> {
       String role = roles[Math.max(0, selector.getSelectedItemPosition())];
       int w = keyboardPrefs.getInt("game_btn_w_" + role, 0);
       int h = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+      int f = keyboardPrefs.getInt("game_btn_font_" + role, 9);
+      int sh = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       width.setProgress(Math.max(0, Math.min(220, w)));
       height.setProgress(h <= 0 ? 42 : Math.max(28, Math.min(120, h)) - 28);
+      font.setProgress(Math.max(0, Math.min(10, f - 8)));
+      shape.setSelection(Math.max(0, Math.min(shapeNames.length - 1, sh)));
       widthValue.setText("Lebar: " + (w == 0 ? "Otomatis" : w + " dp"));
       heightValue.setText("Tinggi: " + (h <= 0 ? "Default" : h + " dp"));
+      fontValue.setText("Ukuran teks: " + f + " sp");
     };
     selector.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
       @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) { refreshLabels.run(); }
@@ -1346,21 +1352,34 @@ public class FloatingKeyboardService extends Service {
       @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
       @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
     });
+    font.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(android.widget.SeekBar bar, int value, boolean fromUser) {
+        fontValue.setText("Ukuran teks: " + (value + 8) + " sp");
+      }
+      @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+      @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+    });
     android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
-        .setTitle("Ukuran tombol gamepad")
+        .setTitle("Ukuran, bentuk & teks tombol")
         .setView(content)
         .setPositiveButton("Simpan ukuran", (d, which) -> {
           String role = roles[Math.max(0, selector.getSelectedItemPosition())];
           int w = width.getProgress();
           int h = height.getProgress() + 28;
+          int f = font.getProgress() + 8;
+          int sh = shape.getSelectedItemPosition();
           keyboardPrefs.edit().putInt("game_btn_w_" + role, w)
-              .putInt("game_btn_h_" + role, h).apply();
-          recordGamepadDiagnostic("BUTTON_RESIZE", "role=" + role + ", widthDp=" + w + ", heightDp=" + h);
+              .putInt("game_btn_h_" + role, h)
+              .putInt("game_btn_font_" + role, f)
+              .putInt("game_btn_shape_" + role, sh).apply();
+          recordGamepadDiagnostic("BUTTON_RESIZE", "role=" + role + ", widthDp=" + w
+              + ", heightDp=" + h + ", fontSp=" + f + ", shape=" + sh);
           rebuildKeyboard();
         })
         .setNeutralButton("Reset ukuran", (d, which) -> {
           String role = roles[Math.max(0, selector.getSelectedItemPosition())];
-          keyboardPrefs.edit().remove("game_btn_w_" + role).remove("game_btn_h_" + role).apply();
+          keyboardPrefs.edit().remove("game_btn_w_" + role).remove("game_btn_h_" + role)
+              .remove("game_btn_font_" + role).remove("game_btn_shape_" + role).apply();
           rebuildKeyboard();
         })
         .setNegativeButton("Batal", null)
@@ -1541,14 +1560,21 @@ public class FloatingKeyboardService extends Service {
       String role, boolean aimable) {
     final String mappedRole = keyboardPrefs.getString("game_map_" + role, role);
     Button b = new Button(this);
-    b.setText(label); b.setAllCaps(false); b.setTextSize(aimable ? 12 : 10);
+    int customFont = keyboardPrefs.getInt("game_btn_font_" + role, aimable ? 11 : 9);
+    b.setText(label); b.setAllCaps(false); b.setTextSize(Math.max(8, Math.min(18, customFont)));
     b.setMinWidth(0); b.setMinimumWidth(0);
     b.setPadding(dp(2), 0, dp(2), 0);
     int customWidth = keyboardPrefs.getInt("game_btn_w_" + role, 0);
     int customHeight = keyboardPrefs.getInt("game_btn_h_" + role, 0);
     if (aimable) {
       android.graphics.drawable.GradientDrawable circle = new android.graphics.drawable.GradientDrawable();
-      circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+      int shapeMode = keyboardPrefs.getInt("game_btn_shape_" + role, 3);
+      if (shapeMode == 3) {
+        circle.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+      } else {
+        circle.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        circle.setCornerRadius(dp(shapeMode == 1 ? 3 : (shapeMode == 2 ? 40 : 12)));
+      }
       circle.setColor(Color.rgb(42, 59, 78));
       circle.setStroke(dp(1), Color.rgb(79, 126, 160));
       b.setBackground(circle);
@@ -1560,6 +1586,19 @@ public class FloatingKeyboardService extends Service {
       row.addView(b, lp);
     } else {
       styleButton(b, "SERANG".equals(label) || "ULT".equals(label));
+      int shapeMode = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
+      android.graphics.drawable.GradientDrawable triggerShape = new android.graphics.drawable.GradientDrawable();
+      triggerShape.setColor(("SERANG".equals(label) || "ULT".equals(label))
+          ? Color.rgb(111, 211, 244) : Color.rgb(43, 61, 78));
+      triggerShape.setStroke(dp(1), Color.rgb(79, 126, 160));
+      if (shapeMode == 3) {
+        triggerShape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+      } else {
+        triggerShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        triggerShape.setCornerRadius(dp(shapeMode == 1 ? 3 : (shapeMode == 2 ? 40 : 12)));
+      }
+      b.setBackgroundTintList(null);
+      b.setBackground(triggerShape);
       LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
           customWidth > 0 ? dp(customWidth) : 0,
           customHeight > 0 ? dp(customHeight) : -1,
