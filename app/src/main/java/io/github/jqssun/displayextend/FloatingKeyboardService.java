@@ -1079,6 +1079,8 @@ public class FloatingKeyboardService extends Service {
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
     allowGamepadButtonOverflow(panel);
+    // Solid black gamepad surface; keep the actual controls and settings button.
+    panel.setBackgroundColor(Color.BLACK);
     Button gamepadSettings = new Button(this);
     gamepadSettings.setText("PENGATURAN GAMEPAD");
     gamepadSettings.setAllCaps(false);
@@ -1124,27 +1126,8 @@ public class FloatingKeyboardService extends Service {
     });
     panel.addView(gamepadSettings, new LinearLayout.LayoutParams(-1, dp(36)));
 
-    TextView coordinateTitle = new TextView(this);
-    coordinateTitle.setText("KOORDINAT TARGET · LIVE");
-    coordinateTitle.setTextColor(Color.rgb(174, 207, 245));
-    coordinateTitle.setTextSize(9);
-    coordinateTitle.setGravity(Gravity.CENTER);
-    panel.addView(coordinateTitle, new LinearLayout.LayoutParams(-1, dp(20)));
-    gamepadCoordinateIndicator = new TextView(this);
-    gamepadCoordinateIndicator.setText("Sentuh tombol untuk melihat X/Y");
-    gamepadCoordinateIndicator.setTextColor(Color.rgb(225, 241, 255));
-    gamepadCoordinateIndicator.setTextSize(10);
-    gamepadCoordinateIndicator.setGravity(Gravity.CENTER);
-    gamepadCoordinateIndicator.setSingleLine(true);
-    gamepadCoordinateIndicator.setPadding(dp(3), 0, dp(3), 0);
-    panel.addView(gamepadCoordinateIndicator, new LinearLayout.LayoutParams(-1, dp(24)));
-
-    TextView note = new TextView(this);
-    note.setText("SENTUHAN MOBA · TAP / TAHAN / BIDIK");
-    note.setTextColor(Color.rgb(174, 207, 245));
-    note.setTextSize(9);
-    note.setGravity(Gravity.CENTER);
-    panel.addView(note, new LinearLayout.LayoutParams(-1, dp(20)));
+    // Hide instructional/status labels to keep the control surface uncluttered.
+    gamepadCoordinateIndicator = null;
 
     LinearLayout specialRow = new LinearLayout(this);
     specialRow.setGravity(Gravity.CENTER);
@@ -1153,20 +1136,13 @@ public class FloatingKeyboardService extends Service {
     int specialHeight = Math.max(gameButtonHeight("ultimate", 54), gameButtonHeight("spell", 54));
     panel.addView(specialRow, new LinearLayout.LayoutParams(-1, dp(specialHeight)));
 
-    TextView aimTitle = new TextView(this);
-    aimTitle.setText("ANALOG BIDIK SKILL");
-    aimTitle.setTextColor(Color.rgb(174, 207, 245));
-    aimTitle.setTextSize(9);
-    aimTitle.setGravity(Gravity.CENTER);
-    panel.addView(aimTitle, new LinearLayout.LayoutParams(-1, dp(18)));
-
     LinearLayout skillSticks = new LinearLayout(this);
     skillSticks.setGravity(Gravity.CENTER);
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    // Fixed 100dp row keeps all three skill aim controls large and uniform.
-    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(100)));
+    // Extra room for separately adjustable skill-circle diameters.
+    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(116)));
 
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
@@ -1177,14 +1153,7 @@ public class FloatingKeyboardService extends Service {
     attackLp.setMargins(dp(4), dp(2), dp(4), dp(3));
     panel.addView(attackRow, attackLp);
 
-    TextView slotsTitle = new TextView(this);
-    slotsTitle.setText("9 TOMBOL BEBAS · NAMA BISA DIUBAH");
-    slotsTitle.setTextColor(Color.rgb(174, 207, 245));
-    slotsTitle.setTextSize(8);
-    slotsTitle.setGravity(Gravity.CENTER);
-    panel.addView(slotsTitle, new LinearLayout.LayoutParams(-1, dp(18)));
-
-    String[][] slotRows = {
+     String[][] slotRows = {
       {"slot_1", "slot_2", "slot_3"},
       {"slot_4", "slot_5", "slot_6"},
       {"slot_7", "slot_8", "slot_9"}
@@ -1203,13 +1172,7 @@ public class FloatingKeyboardService extends Service {
       panel.addView(row, rowLp);
     }
 
-    TextView footnote = new TextView(this);
-    footnote.setText("Mapping HUD tiap tombol diatur terpisah melalui Mapping Visual.");
-    footnote.setTextColor(Color.rgb(174, 207, 245));
-    footnote.setTextSize(8);
-    footnote.setGravity(Gravity.CENTER);
-    panel.addView(footnote, new LinearLayout.LayoutParams(-1, dp(18)));
-  }
+   }
 
   private int getCustomTriggerCount() {
     return Math.max(0, Math.min(20, keyboardPrefs.getInt("custom_trigger_count", 0)));
@@ -1408,6 +1371,9 @@ public class FloatingKeyboardService extends Service {
     final TextView widthValue = new TextView(this);
     final TextView heightValue = new TextView(this);
     final TextView fontValue = new TextView(this);
+    final TextView circleValue = new TextView(this);
+    android.widget.SeekBar circleSize = new android.widget.SeekBar(this);
+    circleSize.setMax(80); // 32..112 dp
     android.widget.SeekBar width = new android.widget.SeekBar(this);
     width.setMax(220);
     android.widget.SeekBar height = new android.widget.SeekBar(this);
@@ -1431,6 +1397,11 @@ public class FloatingKeyboardService extends Service {
     content.addView(height);
     content.addView(fontValue);
     content.addView(font);
+    TextView circleTitle = new TextView(this);
+    circleTitle.setText("Diameter lingkaran skill (khusus Skill 1/2/3)");
+    content.addView(circleTitle);
+    content.addView(circleValue);
+    content.addView(circleSize);
     TextView shapeTitle = new TextView(this);
     shapeTitle.setText("Bentuk tombol");
     content.addView(shapeTitle);
@@ -1441,6 +1412,10 @@ public class FloatingKeyboardService extends Service {
       int h = keyboardPrefs.getInt("game_btn_h_" + role, 0);
       int f = keyboardPrefs.getInt("game_btn_font_" + role, 9);
       int sh = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
+      int diameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
+      circleSize.setProgress(Math.max(0, Math.min(80, diameter - 32)));
+      circleValue.setText("Diameter lingkaran: " + diameter + " dp");
+      circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role));
       width.setProgress(Math.max(0, Math.min(220, w)));
       height.setProgress(h <= 0 ? 48 : Math.max(28, Math.min(200, h)) - 28);
       font.setProgress(Math.max(0, Math.min(10, f - 8)));
@@ -1467,6 +1442,13 @@ public class FloatingKeyboardService extends Service {
       @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
       @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
     });
+    circleSize.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(android.widget.SeekBar bar, int value, boolean fromUser) {
+        circleValue.setText("Diameter lingkaran: " + (value + 32) + " dp");
+      }
+      @Override public void onStartTrackingTouch(android.widget.SeekBar bar) {}
+      @Override public void onStopTrackingTouch(android.widget.SeekBar bar) {}
+    });
     font.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
       @Override public void onProgressChanged(android.widget.SeekBar bar, int value, boolean fromUser) {
         fontValue.setText("Ukuran teks: " + (value + 8) + " sp");
@@ -1483,10 +1465,15 @@ public class FloatingKeyboardService extends Service {
           int h = height.getProgress() + 28;
           int f = font.getProgress() + 8;
           int sh = shape.getSelectedItemPosition();
-          keyboardPrefs.edit().putInt("game_btn_w_" + role, w)
+          android.content.SharedPreferences.Editor editor = keyboardPrefs.edit()
+              .putInt("game_btn_w_" + role, w)
               .putInt("game_btn_h_" + role, h)
               .putInt("game_btn_font_" + role, f)
-              .putInt("game_btn_shape_" + role, sh).apply();
+              .putInt("game_btn_shape_" + role, sh);
+          if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) {
+            editor.putInt("game_skill_circle_" + role, circleSize.getProgress() + 32);
+          }
+          editor.apply();
           recordGamepadDiagnostic("BUTTON_RESIZE", "role=" + role + ", widthDp=" + w
               + ", heightDp=" + h + ", fontSp=" + f + ", shape=" + sh);
           rebuildKeyboard();
@@ -1576,7 +1563,9 @@ public class FloatingKeyboardService extends Service {
       // metallic rim and a clear label. The whole cell remains touch-sensitive.
       // Larger locked skill face: 72dp diameter while preserving a generous
       // surrounding touch-sensitive area for smooth aiming gestures.
-      float buttonRadius = Math.min(dp(36), Math.max(dp(28), Math.min(getWidth() * 0.38f, getHeight() * 0.42f)));
+      int savedDiameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
+      float buttonRadius = Math.min(dp(54), Math.max(dp(20),
+          Math.min(dp(savedDiameter) / 2f, Math.min(getWidth() * 0.44f, getHeight() * 0.46f))));
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(Color.rgb(13, 20, 31));
       canvas.drawCircle(cx, cy, buttonRadius + dp(3), paint);
