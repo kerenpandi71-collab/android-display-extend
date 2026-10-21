@@ -802,7 +802,7 @@ public class FloatingKeyboardService extends Service {
     landscapeTrackpadView = right;
     landscapeTrackpadParams = new WindowManager.LayoutParams(
         Math.max(dp(190), Math.round(screenWidth * 0.30f)),
-        Math.min(screenHeight - dp(12), WindowManager.LayoutParams.MATCH_PARENT),
+        Math.max(dp(180), screenHeight - dp(88)),
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
@@ -1190,6 +1190,8 @@ public class FloatingKeyboardService extends Service {
     addTouchGameButton(specialRow, "SPELL", 1f, "spell", true);
     int specialHeight = Math.max(gameButtonHeight("ultimate", 54), gameButtonHeight("spell", 54));
     panel.addView(specialRow, new LinearLayout.LayoutParams(-1, dp(specialHeight)));
+    // Add separation below ULT/SPELL so the pair sits slightly higher than the skill row.
+    panel.addView(new View(this), new LinearLayout.LayoutParams(-1, dp(12)));
 
     LinearLayout skillSticks = new LinearLayout(this);
     skillSticks.setGravity(Gravity.CENTER);
