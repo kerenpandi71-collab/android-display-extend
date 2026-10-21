@@ -11,15 +11,76 @@
         android:paddingTop="8dp"
         android:paddingBottom="8dp">
 
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/saku_dex_hero"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="?attr/colorPrimaryContainer"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="2dp"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="14dp">
+
+                <TextView
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:gravity="center"
+                    android:text="SD"
+                    android:textStyle="bold"
+                    android:textSize="18sp"
+                    android:textColor="?attr/colorOnPrimaryContainer"
+                    android:background="?attr/colorPrimary"
+                    android:contentDescription="Logo Saku Dex" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="14dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Saku Dex"
+                        android:textStyle="bold"
+                        android:textSize="20sp"
+                        android:textColor="?attr/colorOnPrimaryContainer" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:text="Virtual display, input, dan Gamepad dalam satu ruang kerja."
+                        android:textSize="12sp"
+                        android:textColor="?attr/colorOnPrimaryContainer" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Permissions status -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/permissions_status_card"
             style="@style/Widget.Material3.CardView.Elevated"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
+            android:layout_marginHorizontal="12dp"
             android:layout_marginTop="8dp"
-            app:cardBackgroundColor="?attr/colorPrimaryContainer">
+            app:cardBackgroundColor="?attr/colorPrimaryContainer"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="1dp"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -72,8 +133,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="16dp"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainer">
+            android:layout_marginTop="8dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainer"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="1dp"
+            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeWidth="1dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
