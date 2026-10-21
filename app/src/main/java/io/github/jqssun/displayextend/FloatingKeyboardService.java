@@ -367,6 +367,7 @@ public class FloatingKeyboardService extends Service {
     int defaultY = Math.max(12, screenHeightDp - (keyHeightDp * 4) - 60 - 12);
     verticalOffsetDp = keyboardPrefs.getInt("vertical_offset_dp", defaultY);
     keyboardLayout = keyboardPrefs.getInt("layout", 0);
+    gamepadMode = keyboardPrefs.getBoolean("gamepad_mode", false);
   }
 
   @Override
@@ -618,7 +619,12 @@ public class FloatingKeyboardService extends Service {
     modeButton.setTextSize(10);
     styleButton(modeButton, gamepadMode);
     modeButton.setContentDescription("Ganti mode keyboard atau gamepad");
-    modeButton.setOnClickListener(v -> { gamepadMode = !gamepadMode; settingsVisible = false; rebuildKeyboard(); });
+    modeButton.setOnClickListener(v -> {
+      gamepadMode = !gamepadMode;
+      keyboardPrefs.edit().putBoolean("gamepad_mode", gamepadMode).apply();
+      settingsVisible = false;
+      rebuildKeyboard();
+    });
     titleRow.addView(modeButton, new LinearLayout.LayoutParams(dp(38), dp(32)));
     Button customize = new Button(this);
     customize.setText(settingsVisible ? "Tutup" : "⚙");
@@ -1053,6 +1059,7 @@ public class FloatingKeyboardService extends Service {
     back.setOnClickListener(v -> {
       gameTouchController.releaseAll();
       gamepadMode = false;
+      keyboardPrefs.edit().putBoolean("gamepad_mode", false).apply();
       rebuildKeyboard();
     });
     panel.addView(back, new LinearLayout.LayoutParams(-1, dp(34)));
@@ -2055,7 +2062,9 @@ public class FloatingKeyboardService extends Service {
       layouts.addView(choice, lp);
       choice.setOnClickListener(v -> {
         keyboardLayout = selected;
-        keyboardPrefs.edit().putInt("layout", keyboardLayout).apply();
+        gamepadMode = selected == 3;
+        keyboardPrefs.edit().putInt("layout", keyboardLayout)
+            .putBoolean("gamepad_mode", gamepadMode).apply();
         settingsVisible = false;
         rebuildKeyboard();
       });
