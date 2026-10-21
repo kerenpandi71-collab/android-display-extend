@@ -956,6 +956,10 @@ public class FloatingKeyboardService extends Service {
     }
   }
 
+  private int gameButtonHeight(String role, int fallbackDp) {
+    return Math.max(fallbackDp, keyboardPrefs.getInt("game_btn_h_" + role, 0));
+  }
+
   private void addLandscapeGamepadRight(LinearLayout panel) {
     // Keep mapping and diagnostics at the top so they remain reachable on short screens.
     Button customize = new Button(this);
@@ -1025,17 +1029,21 @@ public class FloatingKeyboardService extends Service {
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(76)));
+    int skillRowHeight = Math.max(gameButtonHeight("skill1", 76),
+        Math.max(gameButtonHeight("skill2", 76), gameButtonHeight("skill3", 76)));
+    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(skillRowHeight)));
 
     LinearLayout row3 = new LinearLayout(this); row3.setGravity(Gravity.CENTER);
     addTouchGameButton(row3, "ULT", 1f, "ultimate", true);
     addTouchGameButton(row3, "SPELL", 1f, "spell", true);
-    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(54)));
+    int ultimateRowHeight = Math.max(gameButtonHeight("ultimate", 54), gameButtonHeight("spell", 54));
+    panel.addView(row3, new LinearLayout.LayoutParams(-1, dp(ultimateRowHeight)));
 
     LinearLayout row4 = new LinearLayout(this); row4.setGravity(Gravity.CENTER);
     addTouchGameButton(row4, "UPGRADE", 1f, "upgrade", false);
     addTouchGameButton(row4, "RECALL", 1f, "recall", false);
-    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(40)));
+    int utilityRowHeight = Math.max(gameButtonHeight("upgrade", 40), gameButtonHeight("recall", 40));
+    panel.addView(row4, new LinearLayout.LayoutParams(-1, dp(utilityRowHeight)));
 
     addCustomTriggerControls(panel);
 
@@ -1056,7 +1064,7 @@ public class FloatingKeyboardService extends Service {
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
     addTouchGameButton(attackRow, "SERANG", 1f, "attack", false);
-    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(46));
+    LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 46)));
     attackLp.setMargins(dp(4), dp(2), dp(4), dp(4));
     panel.addView(attackRow, attackLp);
 
@@ -1090,7 +1098,11 @@ public class FloatingKeyboardService extends Service {
         for (int index = start; index <= end; index++) {
           addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
         }
-        triggerList.addView(row, new LinearLayout.LayoutParams(-1, dp(38)));
+        int triggerRowHeight = 38;
+        for (int index = start; index <= end; index++) {
+          triggerRowHeight = Math.max(triggerRowHeight, gameButtonHeight("custom_" + index, 38));
+        }
+        triggerList.addView(row, new LinearLayout.LayoutParams(-1, dp(triggerRowHeight)));
       }
       android.widget.ScrollView triggerScroll = new android.widget.ScrollView(this);
       triggerScroll.setFillViewport(false);
