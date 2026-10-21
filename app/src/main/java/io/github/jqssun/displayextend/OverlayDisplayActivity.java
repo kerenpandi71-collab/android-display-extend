@@ -116,14 +116,14 @@ public class OverlayDisplayActivity extends Activity {
     button.setText("Sedang merekam log...");
     new Thread(() -> {
       StringBuilder log = new StringBuilder();
-      log.append("Android Display Extend - Virtual Display Performance Log\\n");
-      log.append("Waktu: ").append(new java.util.Date()).append("\\n");
-      log.append("Package: ").append(getPackageName()).append("\\n");
+      log.append("Android Display Extend - Virtual Display Performance Log\n");
+      log.append("Waktu: ").append(new java.util.Date()).append("\n");
+      log.append("Package: ").append(getPackageName()).append("\n");
       log.append("Android: ").append(android.os.Build.VERSION.RELEASE)
-          .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\\n");
+          .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\n");
       log.append("Device: ").append(android.os.Build.MANUFACTURER).append(" ")
-          .append(android.os.Build.MODEL).append("\\n");
-      log.append("Catatan: ambil log saat lag terjadi; beberapa statistik bergantung pada ROM/root.\\n\\n");
+          .append(android.os.Build.MODEL).append("\n");
+      log.append("Catatan: ambil log saat lag terjadi; beberapa statistik bergantung pada ROM/root.\n\n");
       String[] commands = {
           "echo '===== DISPLAY ====='; dumpsys display",
           "echo '===== SURFACEFLINGER LAYERS ====='; dumpsys SurfaceFlinger --list",
@@ -144,19 +144,19 @@ public class OverlayDisplayActivity extends Activity {
             new java.io.InputStreamReader(process.getInputStream()))) {
           String line;
           while ((line = reader.readLine()) != null) {
-            if (log.length() < 1_500_000) log.append(line).append('\\n');
+            if (log.length() < 1_500_000) log.append(line).append('\n');
           }
         }
         rootOk = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS);
         if (!rootOk) {
           process.destroyForcibly();
-          log.append("\\nERROR: pengambilan data melewati batas waktu 20 detik.\\n");
+          log.append("\nERROR: pengambilan data melewati batas waktu 20 detik.\n");
         } else {
-          log.append("\\nExit code: ").append(process.exitValue()).append('\\n');
+          log.append("\nExit code: ").append(process.exitValue()).append('\n');
         }
       } catch (Throwable t) {
         if (process != null) process.destroyForcibly();
-        log.append("\\nERROR root capture: ").append(t).append('\\n');
+        log.append("\nERROR root capture: ").append(t).append('\n');
       }
 
       String filename = "DisplayExtend_Performance_" +
