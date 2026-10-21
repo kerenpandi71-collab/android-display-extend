@@ -1144,16 +1144,20 @@ public class FloatingKeyboardService extends Service {
     gamepadSettings.setOnClickListener(v -> {
       android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
           .setTitle("Pengaturan gamepad")
-          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol", "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF")},
+          .setItems(new String[] {"Profil Gamepad kanan: " + getGamepadProfileLabel(),
+              "Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize",
+              "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol",
+              "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF")},
               (dialog, which) -> {
+                if (which == 0) { showGamepadProfilePicker(); return; }
                 switch (which) {
-                  case 0:
+                  case 1:
                     if (visualMappingMarkerParams != null) saveVisualMappingPosition();
                     else showVisualMappingPicker();
                     break;
-                  case 1: showGamepadDiagnostics(); break;
-                  case 2: showControlSizeDialog(); break;
-                  case 3:
+                  case 2: showGamepadDiagnostics(); break;
+                  case 3: showControlSizeDialog(); break;
+                  case 4:
                     android.app.AlertDialog triggerDialog = new android.app.AlertDialog.Builder(this)
                         .setTitle("Trigger")
                         .setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> {
@@ -1162,10 +1166,10 @@ public class FloatingKeyboardService extends Service {
                         }).create();
                     showServiceOverlayDialog(triggerDialog);
                     break;
-                  case 4: confirmResetGamepadButtonPositions(); break;
-                  case 5: showGamepadLayoutEditor(); break;
-                  case 6: showGameSlotNameDialog(); break;
-                  case 7: {
+                  case 5: confirmResetGamepadButtonPositions(); break;
+                  case 6: showGamepadLayoutEditor(); break;
+                  case 7: showGameSlotNameDialog(); break;
+                  case 8: {
                     boolean enabled = !keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false);
                     keyboardPrefs.edit().putBoolean("gamepad_hold_reposition_enabled", enabled).apply();
                     Toast.makeText(this, enabled
@@ -1183,6 +1187,12 @@ public class FloatingKeyboardService extends Service {
 
     // Hide instructional/status labels to keep the control surface uncluttered.
     gamepadCoordinateIndicator = null;
+
+    int profile = getGamepadProfile();
+    if (profile == 2 || profile == 3) {
+      // Profiles 2 and 3 are intentionally empty for the user to configure later.
+      return;
+    }
 
     LinearLayout specialRow = new LinearLayout(this);
     specialRow.setGravity(Gravity.CENTER);
@@ -1230,6 +1240,39 @@ public class FloatingKeyboardService extends Service {
     }
 
    }
+
+  private int getGamepadProfile() {
+    return Math.max(1, Math.min(4, keyboardPrefs.getInt("gamepad_right_profile", 1)));
+  }
+
+  private String getGamepadProfileLabel() {
+    switch (getGamepadProfile()) {
+      case 2: return "Gamepad kanan 2";
+      case 3: return "Gamepad kanan 3";
+      case 4: return "Custom";
+      default: return "Gamepad kanan 1";
+    }
+  }
+
+  private void showGamepadProfilePicker() {
+    final String[] profiles = {"Gamepad kanan 1", "Gamepad kanan 2 (kosong)",
+        "Gamepad kanan 3 (kosong)", "Custom"};
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Pilih profil gamepad")
+        .setSingleChoiceItems(profiles, getGamepadProfile() - 1, (d, which) -> {
+          keyboardPrefs.edit().putInt("gamepad_right_profile", which + 1).apply();
+          d.dismiss();
+          rebuildKeyboard();
+          if (which == 3) {
+            Toast.makeText(this,
+                "Mode Custom aktif. Atur ukuran/bentuk lewat Resize dan posisi lewat Atur Posisi Tombol.",
+                Toast.LENGTH_LONG).show();
+          } else if (which == 1 || which == 2) {
+            Toast.makeText(this, profiles[which] + " dipilih; panel sengaja dikosongkan.", Toast.LENGTH_SHORT).show();
+          }
+        }).setNegativeButton("Batal", null).create();
+    showServiceOverlayDialog(dialog);
+  }
 
   private int getCustomTriggerCount() {
     return Math.max(0, Math.min(20, keyboardPrefs.getInt("custom_trigger_count", 0)));
