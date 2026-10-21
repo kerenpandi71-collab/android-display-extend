@@ -1021,33 +1021,47 @@ public class FloatingKeyboardService extends Service {
     return Math.max(fallbackDp, keyboardPrefs.getInt("game_btn_h_" + role, 0));
   }
 
+  private void showServiceOverlayDialog(android.app.AlertDialog dialog) {
+    if (dialog == null) return;
+    if (dialog.getWindow() != null) {
+      dialog.getWindow().setType(Build.VERSION.SDK_INT >= 26
+          ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+          : WindowManager.LayoutParams.TYPE_PHONE);
+    }
+    dialog.show();
+  }
+
   private void addLandscapeGamepadRight(LinearLayout panel) {
     Button gamepadSettings = new Button(this);
     gamepadSettings.setText("PENGATURAN GAMEPAD");
     gamepadSettings.setAllCaps(false);
     gamepadSettings.setTextSize(10);
     styleButton(gamepadSettings, true);
-    gamepadSettings.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-        .setTitle("Pengaturan gamepad")
-        .setItems(new String[] {"Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola"},
-            (dialog, which) -> {
-              switch (which) {
-                case 0:
-                  if (visualMappingMarkerParams != null) saveVisualMappingPosition();
-                  else showVisualMappingPicker();
-                  break;
-                case 1: showGamepadDiagnostics(); break;
-                case 2: showControlSizeDialog(); break;
-                case 3:
-                  new android.app.AlertDialog.Builder(this)
-                      .setTitle("Trigger")
-                      .setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> {
-                        if (action == 0) showAddCustomTriggerDialog();
-                        else showManageCustomTriggersDialog();
-                      }).show();
-                  break;
-              }
-            }).show());
+    gamepadSettings.setOnClickListener(v -> {
+      android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
+          .setTitle("Pengaturan gamepad")
+          .setItems(new String[] {"Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola"},
+              (dialog, which) -> {
+                switch (which) {
+                  case 0:
+                    if (visualMappingMarkerParams != null) saveVisualMappingPosition();
+                    else showVisualMappingPicker();
+                    break;
+                  case 1: showGamepadDiagnostics(); break;
+                  case 2: showControlSizeDialog(); break;
+                  case 3:
+                    android.app.AlertDialog triggerDialog = new android.app.AlertDialog.Builder(this)
+                        .setTitle("Trigger")
+                        .setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> {
+                          if (action == 0) showAddCustomTriggerDialog();
+                          else showManageCustomTriggersDialog();
+                        }).create();
+                    showServiceOverlayDialog(triggerDialog);
+                    break;
+                }
+              }).create();
+      showServiceOverlayDialog(settingsDialog);
+    });
     panel.addView(gamepadSettings, new LinearLayout.LayoutParams(-1, dp(36)));
 
     TextView coordinateTitle = new TextView(this);
