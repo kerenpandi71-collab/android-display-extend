@@ -984,13 +984,30 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
-    Button gamepadSettings = new Button(this);
-    gamepadSettings.setText("PENGATURAN GAMEPAD");
-    gamepadSettings.setAllCaps(false);
-    gamepadSettings.setTextSize(10);
-    styleButton(gamepadSettings, true);
-    gamepadSettings.setOnClickListener(v -> showGamepadSettingsDialog());
-    panel.addView(gamepadSettings, new LinearLayout.LayoutParams(-1, dp(36)));
+    // Keep mapping and diagnostics at the top so they remain reachable on short screens.
+    // Add/manage triggers belong with the top-level settings, not below skill controls.
+    addCustomTriggerControls(panel);
+
+    visualMappingButton = new Button(this);
+    visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
+    visualMappingButton.setAllCaps(false); visualMappingButton.setTextSize(10); styleButton(visualMappingButton, true);
+    visualMappingButton.setOnClickListener(v -> {
+      if (visualMappingMarkerParams != null) saveVisualMappingPosition();
+      else showVisualMappingPicker();
+    });
+    panel.addView(visualMappingButton, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button diagnostics = new Button(this);
+    diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
+    diagnostics.setAllCaps(false); diagnostics.setTextSize(10); styleButton(diagnostics, true);
+    diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
+    panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button resizeControls = new Button(this);
+    resizeControls.setText("UKURAN TOMBOL · RESIZE");
+    resizeControls.setAllCaps(false); resizeControls.setTextSize(10); styleButton(resizeControls, true);
+    resizeControls.setOnClickListener(v -> showControlSizeDialog());
+    panel.addView(resizeControls, new LinearLayout.LayoutParams(-1, dp(32)));
 
     TextView coordinateTitle = new TextView(this);
     coordinateTitle.setText("KOORDINAT TARGET · LIVE");
@@ -1049,7 +1066,6 @@ public class FloatingKeyboardService extends Service {
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
     addTouchGameButton(attackRow, "SERANG", 1f, "attack", false);
-    addCustomTriggerButtons(attackRow);
     LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 46)));
     attackLp.setMargins(dp(4), dp(2), dp(4), dp(4));
     panel.addView(attackRow, attackLp);
@@ -1072,59 +1088,49 @@ public class FloatingKeyboardService extends Service {
     return label.trim();
   }
 
-  private void addCustomTriggerButtons(LinearLayout row) {
+  private void addCustomTriggerControls(LinearLayout panel) {
     int count = getCustomTriggerCount();
-    for (int index = 1; index <= count; index++) {
-      addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
-    }
-  }
 
-  private void showGamepadSettingsDialog() {
-    LinearLayout options = new LinearLayout(this);
-    options.setOrientation(LinearLayout.VERTICAL);
-    options.setPadding(dp(12), dp(8), dp(12), dp(8));
-    String[] labels = {
-        "MAPPING VISUAL · GESER PENANDA",
-        "LOG DIAGNOSIS · SALIN / BAGIKAN",
-        "UKURAN TOMBOL · RESIZE",
-        "TRIGGER · TAMBAH / KELOLA"
-    };
-    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
-        .setTitle("Pengaturan gamepad")
-        .setView(options)
-        .setNegativeButton("Tutup", null)
-        .create();
-    for (int i = 0; i < labels.length; i++) {
-      final int choice = i;
-      Button item = new Button(this);
-      item.setText(labels[i]);
-      item.setAllCaps(false);
-      item.setTextSize(11);
-      styleButton(item, i == 0);
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(42));
-      lp.setMargins(0, dp(3), 0, dp(3));
-      options.addView(item, lp);
-      item.setOnClickListener(v -> {
-        dialog.dismiss();
-        switch (choice) {
-          case 0:
-            if (visualMappingMarkerParams != null) saveVisualMappingPosition();
-            else showVisualMappingPicker();
-            break;
-          case 1: showGamepadDiagnostics(); break;
-          case 2: showControlSizeDialog(); break;
-          case 3:
-            new android.app.AlertDialog.Builder(this)
-                .setTitle("Trigger")
-                .setItems(new String[]{"Tambah trigger baru", "Kelola / ganti nama / hapus"}, (d, which) -> {
-                  if (which == 0) showAddCustomTriggerDialog();
-                  else showManageCustomTriggersDialog();
-                }).show();
-            break;
+    // Keep trigger management at the top so it is easy to reach.
+    Button addTrigger = new Button(this);
+    addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
+    addTrigger.setAllCaps(false);
+    addTrigger.setTextSize(10);
+    styleButton(addTrigger, true);
+    addTrigger.setEnabled(count < 20);
+    addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
+    panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button manageTriggers = new Button(this);
+    manageTriggers.setText("KELOLA TRIGGER · GANTI NAMA / HAPUS");
+    manageTriggers.setAllCaps(false);
+    manageTriggers.setTextSize(9);
+    styleButton(manageTriggers, false);
+    manageTriggers.setOnClickListener(v -> showManageCustomTriggersDialog());
+    panel.addView(manageTriggers, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    if (count > 0) {
+      LinearLayout triggerList = new LinearLayout(this);
+      triggerList.setOrientation(LinearLayout.VERTICAL);
+      for (int start = 1; start <= count; start += 2) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER);
+        int end = Math.min(count, start + 1);
+        for (int index = start; index <= end; index++) {
+          addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
         }
-      });
+        int triggerRowHeight = 38;
+        for (int index = start; index <= end; index++) {
+          triggerRowHeight = Math.max(triggerRowHeight, gameButtonHeight("custom_" + index, 38));
+        }
+        triggerList.addView(row, new LinearLayout.LayoutParams(-1, dp(triggerRowHeight)));
+      }
+      android.widget.ScrollView triggerScroll = new android.widget.ScrollView(this);
+      triggerScroll.setFillViewport(false);
+      triggerScroll.setVerticalScrollBarEnabled(true);
+      triggerScroll.addView(triggerList);
+      panel.addView(triggerScroll, new LinearLayout.LayoutParams(-1, dp(88)));
     }
-    dialog.show();
   }
 
   private void showAddCustomTriggerDialog() {
