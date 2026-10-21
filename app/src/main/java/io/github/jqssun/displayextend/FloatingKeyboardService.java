@@ -1259,6 +1259,8 @@ public class FloatingKeyboardService extends Service {
       edit.putFloat("game_y_custom_" + i, keyboardPrefs.getFloat("game_y_custom_" + next, 0.5f));
       copyIntPreference(edit, "game_btn_w_custom_" + i, "game_btn_w_custom_" + next, 0);
       copyIntPreference(edit, "game_btn_h_custom_" + i, "game_btn_h_custom_" + next, 0);
+      copyIntPreference(edit, "game_btn_font_custom_" + i, "game_btn_font_custom_" + next, 9);
+      copyIntPreference(edit, "game_btn_shape_custom_" + i, "game_btn_shape_custom_" + next, 0);
       String nextMap = keyboardPrefs.getString("game_map_custom_" + next, null);
       if (nextMap != null) edit.putString("game_map_custom_" + i, nextMap);
       else edit.remove("game_map_custom_" + i);
@@ -1269,6 +1271,8 @@ public class FloatingKeyboardService extends Service {
     edit.remove("game_map_custom_" + count);
     edit.remove("game_btn_w_custom_" + count);
     edit.remove("game_btn_h_custom_" + count);
+    edit.remove("game_btn_font_custom_" + count);
+    edit.remove("game_btn_shape_custom_" + count);
     edit.putInt("custom_trigger_count", count - 1).apply();
     recordGamepadDiagnostic("CUSTOM_TRIGGER_DELETE", "deleted index=" + selected + ", remaining=" + (count - 1));
   }
