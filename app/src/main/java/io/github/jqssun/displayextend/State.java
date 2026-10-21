@@ -141,10 +141,14 @@ public class State {
       if (interval > 24) cursorSlowIntervals++;
       cursorProcessingSumUs += Math.max(0, processingUs);
       cursorMaxProcessingUs = Math.max(cursorMaxProcessingUs, processingUs);
-      appendPerformance("CURSOR tMs=" + now + " display=" + displayId
-          + " dx=" + String.format(java.util.Locale.US, "%.2f", dx)
-          + " dy=" + String.format(java.util.Locale.US, "%.2f", dy)
-          + " eventIntervalMs=" + interval + " processingUs=" + processingUs);
+      // Sample only every fourth event, plus any unusually slow interval/event.
+      // Keep all events in aggregate counters without formatting a line on every touch.
+      if ((cursorSampleCount % 4) == 0 || interval > 24 || processingUs > 4000) {
+        appendPerformance("CURSOR tMs=" + now + " display=" + displayId
+            + " dx=" + Math.round(dx * 100f) / 100f
+            + " dy=" + Math.round(dy * 100f) / 100f
+            + " eventIntervalMs=" + interval + " processingUs=" + processingUs);
+      }
     }
   }
 
