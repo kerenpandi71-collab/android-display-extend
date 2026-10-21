@@ -1412,7 +1412,7 @@ public class FloatingKeyboardService extends Service {
     android.widget.SeekBar width = new android.widget.SeekBar(this);
     width.setMax(220);
     android.widget.SeekBar height = new android.widget.SeekBar(this);
-    height.setMax(92);
+    height.setMax(172);
     android.widget.SeekBar font = new android.widget.SeekBar(this);
     font.setMax(10);
     android.widget.Spinner shape = new android.widget.Spinner(this);
@@ -1422,7 +1422,7 @@ public class FloatingKeyboardService extends Service {
     content.setOrientation(LinearLayout.VERTICAL);
     content.setPadding(dp(16), dp(8), dp(16), dp(4));
     TextView hint = new TextView(this);
-    hint.setText("Pilih tombol, lalu atur lebar dan tinggi. Lebar 0 berarti otomatis mengikuti baris. Ukuran disimpan per tombol.");
+    hint.setText("Pilih tombol lalu atur ukuran, teks, dan bentuk. Untuk Skill 1/2/3, naikkan lebar dan tinggi agar area bidik nyaman untuk jempol. Ukuran disimpan per tombol.");
     hint.setTextSize(12);
     content.addView(hint);
     content.addView(selector, new LinearLayout.LayoutParams(-1, dp(48)));
@@ -1443,7 +1443,7 @@ public class FloatingKeyboardService extends Service {
       int f = keyboardPrefs.getInt("game_btn_font_" + role, 9);
       int sh = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       width.setProgress(Math.max(0, Math.min(220, w)));
-      height.setProgress(h <= 0 ? 42 : Math.max(28, Math.min(120, h)) - 28);
+      height.setProgress(h <= 0 ? 48 : Math.max(28, Math.min(200, h)) - 28);
       font.setProgress(Math.max(0, Math.min(10, f - 8)));
       shape.setSelection(Math.max(0, Math.min(shapeNames.length - 1, sh)));
       widthValue.setText("Lebar: " + (w == 0 ? "Otomatis" : w + " dp"));
@@ -1986,7 +1986,7 @@ public class FloatingKeyboardService extends Service {
           || label.toUpperCase(java.util.Locale.ROOT).contains("FLICKER")
           || label.toUpperCase(java.util.Locale.ROOT).equals("CC")
           || label.toUpperCase(java.util.Locale.ROOT).contains("AREA EFEK");
-      boolean roundNativeControl = "attack".equals(role) || battleSpell;
+      boolean roundNativeControl = "attack".equals(role) || "ultimate".equals(role) || battleSpell;
       if ("attack".equals(role) || battleSpell) {
         int[] colors = "attack".equals(role)
             ? new int[] { Color.rgb(255, 219, 112), Color.rgb(207, 111, 24), Color.rgb(105, 52, 19) }
