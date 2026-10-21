@@ -1037,7 +1037,23 @@ public class FloatingKeyboardService extends Service {
    * default (especially rows inside the ScrollView), which makes a button appear cut
    * off when dragged upward. Disable clipping along this overlay's ancestor chain.
    */
+  private void disableGamepadClippingRecursively(android.view.ViewGroup group) {
+    group.setClipChildren(false);
+    group.setClipToPadding(false);
+    for (int i = 0; i < group.getChildCount(); i++) {
+      View child = group.getChildAt(i);
+      if (child instanceof android.view.ViewGroup) {
+        disableGamepadClippingRecursively((android.view.ViewGroup) child);
+      }
+    }
+  }
+
   private void allowGamepadButtonOverflow(View view) {
+    // Rows are descendants of the panel and also clip translated children by default.
+    if (view instanceof android.view.ViewGroup) {
+      disableGamepadClippingRecursively((android.view.ViewGroup) view);
+    }
+    // Also disable clipping on ancestors, including the ScrollView that hosts the panel.
     View current = view;
     while (current != null) {
       if (current instanceof android.view.ViewGroup) {
