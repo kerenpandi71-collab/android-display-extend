@@ -2001,7 +2001,8 @@ public class FloatingKeyboardService extends Service {
       triggerShape.setStroke(dp(2), ("attack".equals(role) || battleSpell)
           ? Color.rgb(255, 224, 150)
           : (role.startsWith("slot_") ? Color.rgb(77, 143, 183) : Color.rgb(111, 154, 184)));
-      if (shapeMode == 3 || (shapeMode == 0 && roundNativeControl)) {
+      boolean alwaysCircular = "ultimate".equals(role) || "spell".equals(role);
+      if (alwaysCircular || shapeMode == 3 || (shapeMode == 0 && roundNativeControl)) {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
       } else {
         triggerShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
