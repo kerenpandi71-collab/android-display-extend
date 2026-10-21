@@ -523,7 +523,7 @@ public class FloatingKeyboardService extends Service {
           dragStartX = event.getRawX(); dragStartY = event.getRawY();
           dragOriginX = params.x; dragOriginY = params.y; return true;
         case MotionEvent.ACTION_MOVE:
-          params.x = Math.max(0, dragOriginX + Math.round(event.getRawX() - dragStartX));
+          params.x = Math.max(0, dragOriginX - Math.round(event.getRawX() - dragStartX));
           params.y = Math.max(0, dragOriginY + Math.round(event.getRawY() - dragStartY));
           try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
           return true;
