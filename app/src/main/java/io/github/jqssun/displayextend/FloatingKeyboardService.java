@@ -1688,6 +1688,12 @@ public class FloatingKeyboardService extends Service {
       viewOrigin[0] = b.getTranslationX();
       viewOrigin[1] = b.getTranslationY();
       gameTouchController.release(mappedRole);
+      // Bring the dragged control above overlapping siblings so it remains reachable.
+      b.bringToFront();
+      b.setTranslationZ(dp(24));
+      if (b.getParent() instanceof android.view.ViewGroup) {
+        ((android.view.ViewGroup) b.getParent()).invalidate();
+      }
       b.setPressed(false);
       b.setAlpha(0.78f);
       recordGamepadDiagnostic("BUTTON_REPOSITION_START", "role=" + role + ", label=" + label);
@@ -1755,6 +1761,7 @@ public class FloatingKeyboardService extends Service {
           dragHandler.removeCallbacks(beginReposition);
           if (repositioning[0]) {
             b.setAlpha(1f);
+            b.setTranslationZ(dp(8));
             if (movedForReposition[0]) {
               float density = Math.max(1f, getResources().getDisplayMetrics().density);
               keyboardPrefs.edit()
