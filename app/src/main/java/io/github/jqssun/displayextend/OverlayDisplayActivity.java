@@ -81,14 +81,26 @@ public class OverlayDisplayActivity extends Activity {
     create.setOnClickListener(v -> createOverlay());
 
     MaterialButton performanceLog = new MaterialButton(this);
-    performanceLog.setText("Rekam Log Performa Virtual Display");
+    performanceLog.setText("Mulai Rekam Otomatis");
     addGap(root, 8);
     root.addView(performanceLog);
     TextView performanceHint = new TextView(this);
-    performanceHint.setText("Catat display, SurfaceFlinger, CPU, memori, dan frame timing untuk diagnosis. File disimpan ke Download.");
+    performanceHint.setText("Rekam otomatis CPU, memori, display, dan jeda gerakan kursor setiap dipakai. Tekan lagi untuk berhenti dan menyimpan log ke Download.");
     performanceHint.setTextSize(12);
     root.addView(performanceHint);
-    performanceLog.setOnClickListener(v -> capturePerformanceLog(performanceLog));
+    performanceLog.setOnClickListener(v -> {
+      if (!State.isPerformanceRecording()) {
+        State.startPerformanceMonitor(getApplicationContext());
+        performanceLog.setText("Berhenti & Simpan Log");
+        Toast.makeText(this, "Perekaman otomatis aktif. Gunakan virtual display seperti biasa; tekan lagi untuk menyimpan.", Toast.LENGTH_LONG).show();
+      } else {
+        performanceLog.setEnabled(false);
+        performanceLog.setText("Menyimpan log...");
+        String captured = State.stopPerformanceMonitor();
+        savePerformanceLog(captured, performanceLog);
+      }
+    });
+    if (State.isPerformanceRecording()) performanceLog.setText("Berhenti & Simpan Log");
 
     addGap(root, 20);
     TextView listTitle = new TextView(this);
@@ -111,54 +123,8 @@ public class OverlayDisplayActivity extends Activity {
     loadOverlays();
   }
 
-  private void capturePerformanceLog(MaterialButton button) {
-    button.setEnabled(false);
-    button.setText("Sedang merekam log...");
+  private void savePerformanceLog(String log, MaterialButton button) {
     new Thread(() -> {
-      StringBuilder log = new StringBuilder();
-      log.append("Android Display Extend - Virtual Display Performance Log\n");
-      log.append("Waktu: ").append(new java.util.Date()).append("\n");
-      log.append("Package: ").append(getPackageName()).append("\n");
-      log.append("Android: ").append(android.os.Build.VERSION.RELEASE)
-          .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\n");
-      log.append("Device: ").append(android.os.Build.MANUFACTURER).append(" ")
-          .append(android.os.Build.MODEL).append("\n");
-      log.append("Catatan: ambil log saat lag terjadi; beberapa statistik bergantung pada ROM/root.\n\n");
-      String[] commands = {
-          "echo '===== DISPLAY ====='; dumpsys display",
-          "echo '===== SURFACEFLINGER LAYERS ====='; dumpsys SurfaceFlinger --list",
-          "echo '===== SURFACEFLINGER LATENCY HELP ====='; dumpsys SurfaceFlinger --latency",
-          "echo '===== CPU INFO ====='; dumpsys cpuinfo",
-          "echo '===== MEMORY: EXTEND APP ====='; dumpsys meminfo " + getPackageName(),
-          "echo '===== GRAPHICS: EXTEND APP ====='; dumpsys gfxinfo " + getPackageName() + " framestats",
-          "echo '===== SYSTEM PROPERTIES ====='; getprop ro.hardware; getprop ro.build.version.release; getprop debug.hwui.renderer; getprop debug.angle.backend"
-      };
-      boolean rootOk = false;
-      Process process = null;
-      try {
-        String script = "for c in " + commands.length + "; do :; done; " +
-            "echo '===== ROOT CHECK ====='; id; " +
-            String.join("; ", commands);
-        process = new ProcessBuilder("su", "-c", script).redirectErrorStream(true).start();
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-            new java.io.InputStreamReader(process.getInputStream()))) {
-          String line;
-          while ((line = reader.readLine()) != null) {
-            if (log.length() < 1_500_000) log.append(line).append('\n');
-          }
-        }
-        rootOk = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS);
-        if (!rootOk) {
-          process.destroyForcibly();
-          log.append("\nERROR: pengambilan data melewati batas waktu 20 detik.\n");
-        } else {
-          log.append("\nExit code: ").append(process.exitValue()).append('\n');
-        }
-      } catch (Throwable t) {
-        if (process != null) process.destroyForcibly();
-        log.append("\nERROR root capture: ").append(t).append('\n');
-      }
-
       String filename = "DisplayExtend_Performance_" +
           new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
               .format(new java.util.Date()) + ".txt";
@@ -173,7 +139,7 @@ public class OverlayDisplayActivity extends Activity {
         if (uri == null) throw new java.io.IOException("MediaStore tidak mengembalikan URI");
         try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
           if (out == null) throw new java.io.IOException("Gagal membuka file Download");
-          out.write(log.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+          out.write(log.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
         android.content.ContentValues ready = new android.content.ContentValues();
         ready.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
@@ -185,10 +151,10 @@ public class OverlayDisplayActivity extends Activity {
       final String result = message;
       runOnUiThread(() -> {
         button.setEnabled(true);
-        button.setText("Rekam Log Performa Virtual Display");
+        button.setText("Mulai Rekam Otomatis");
         Toast.makeText(this, result, Toast.LENGTH_LONG).show();
       });
-    }, "display-performance-log").start();
+    }, "display-performance-export").start();
   }
 
   private EditText field(LinearLayout parent, int label, String value, int type) {
