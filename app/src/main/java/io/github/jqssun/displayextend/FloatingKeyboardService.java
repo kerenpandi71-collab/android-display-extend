@@ -1096,13 +1096,7 @@ public class FloatingKeyboardService extends Service {
                     break;
                   case 4: confirmResetGamepadButtonPositions(); break;
                   case 5:
-                    boolean editMode = !keyboardPrefs.getBoolean("gamepad_edit_mode", false);
-                    keyboardPrefs.edit().putBoolean("gamepad_edit_mode", editMode).apply();
-                    Toast.makeText(FloatingKeyboardService.this,
-                        editMode
-                            ? "MODE ATUR POSISI AKTIF · Sentuh lalu seret tombol. Input game sementara dinonaktifkan."
-                            : "MODE ATUR POSISI NONAKTIF · Tombol kembali mengirim input game.",
-                        Toast.LENGTH_LONG).show();
+                    showGamepadLayoutEditor();
                     break;
                 }
               }).create();
@@ -1480,6 +1474,39 @@ public class FloatingKeyboardService extends Service {
         customWidth > 0 ? 0f : 1f);
     lp.setMargins(dp(3), dp(2), dp(3), dp(2));
     row.addView(stick, lp);
+    stick.setTranslationX(dp(Math.round(keyboardPrefs.getFloat("game_ui_x_" + role, 0f))));
+    stick.setTranslationY(dp(Math.round(keyboardPrefs.getFloat("game_ui_y_" + role, 0f))));
+    final float[] dragStart = new float[2];
+    final float[] dragOrigin = new float[2];
+    final boolean[] editing = new boolean[1];
+    stick.setOnTouchListener((v, event) -> {
+      if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        editing[0] = keyboardPrefs.getBoolean("gamepad_edit_mode", false);
+        if (!editing[0]) return false;
+        dragStart[0] = event.getRawX(); dragStart[1] = event.getRawY();
+        dragOrigin[0] = stick.getTranslationX(); dragOrigin[1] = stick.getTranslationY();
+        gameTouchController.release(role);
+        stick.setAlpha(0.78f);
+        stick.bringToFront();
+        return true;
+      }
+      if (!editing[0]) return false;
+      if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+        stick.setTranslationX(dragOrigin[0] + event.getRawX() - dragStart[0]);
+        stick.setTranslationY(dragOrigin[1] + event.getRawY() - dragStart[1]);
+        return true;
+      }
+      if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+        stick.setAlpha(1f);
+        float density = Math.max(1f, getResources().getDisplayMetrics().density);
+        keyboardPrefs.edit().putFloat("game_ui_x_" + role, stick.getTranslationX() / density)
+            .putFloat("game_ui_y_" + role, stick.getTranslationY() / density).apply();
+        recordGamepadDiagnostic("BUTTON_REPOSITION_SAVED", "role=" + role);
+        editing[0] = false;
+        return true;
+      }
+      return true;
+    });
   }
 
   private final class SkillAimStickView extends View {
@@ -1634,6 +1661,166 @@ public class FloatingKeyboardService extends Service {
       .apply();
     recordGamepadDiagnostic("AUTO_MAP", "Applied normalized MLBB landscape HUD preset");
     Toast.makeText(this, "Auto mapping MLBB diterapkan. Sesuaikan jika HUD game berbeda.", Toast.LENGTH_LONG).show();
+  }
+
+  /** Free-position editor. UI offsets remain separate from game_x_/game_y_ HUD mappings. */
+  private void showGamepadLayoutEditor() {
+    final java.util.ArrayList<String> labels = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "SERANG", "S1", "S2", "S3", "ULT", "SPELL", "UPGRADE", "RECALL"));
+    final java.util.ArrayList<String> roles = new java.util.ArrayList<>(java.util.Arrays.asList(
+        "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
+    for (int i = 1; i <= getCustomTriggerCount(); i++) {
+      labels.add(getCustomTriggerLabel(i)); roles.add("custom_" + i);
+    }
+    LinearLayout root = new LinearLayout(this);
+    root.setOrientation(LinearLayout.VERTICAL);
+    root.setPadding(dp(10), dp(6), dp(10), dp(8));
+    TextView hint = new TextView(this);
+    hint.setText("Pilih tombol dari daftar jika bertumpuk, lalu tahan dan seret di kanvas. Posisi tersimpan otomatis; mapping HUD game tidak berubah.");
+    hint.setTextColor(Color.rgb(215, 228, 245)); hint.setTextSize(12);
+    root.addView(hint);
+    android.widget.Spinner selector = new android.widget.Spinner(this);
+    selector.setAdapter(new android.widget.ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, labels));
+    root.addView(selector, new LinearLayout.LayoutParams(-1, dp(42)));
+    android.widget.FrameLayout canvas = new android.widget.FrameLayout(this);
+    canvas.setBackground(createPanelBackground());
+    canvas.setClipChildren(false); canvas.setClipToPadding(false);
+    root.addView(canvas, new LinearLayout.LayoutParams(-1, 0, 1f));
+    TextView selectedLabel = new TextView(this);
+    selectedLabel.setTextColor(Color.rgb(174, 207, 245)); selectedLabel.setTextSize(11);
+    selectedLabel.setGravity(Gravity.CENTER);
+    root.addView(selectedLabel, new LinearLayout.LayoutParams(-1, dp(26)));
+    LinearLayout actions = new LinearLayout(this);
+    Button reset = new Button(this); reset.setText("RESET POSISI"); reset.setAllCaps(false); styleButton(reset, false);
+    Button save = new Button(this); save.setText("SIMPAN & TERAPKAN"); save.setAllCaps(false); styleButton(save, true);
+    actions.addView(reset, new LinearLayout.LayoutParams(0, dp(42), 1f));
+    actions.addView(save, new LinearLayout.LayoutParams(0, dp(42), 1f));
+    root.addView(actions);
+    final java.util.ArrayList<Button> previews = new java.util.ArrayList<>();
+    final int[] selected = {0};
+    final Runnable refreshSelection = () -> {
+      if (previews.isEmpty()) return;
+      selected[0] = Math.max(0, Math.min(previews.size() - 1, selected[0]));
+      selectedLabel.setText("Dipilih: " + labels.get(selected[0]) + " · seret untuk memindahkan");
+      for (int j = 0; j < previews.size(); j++) {
+        previews.get(j).setAlpha(j == selected[0] ? 1f : 0.72f);
+        previews.get(j).setElevation(dp(j == selected[0] ? 12 : 2));
+      }
+    };
+    canvas.post(() -> {
+      int cw = canvas.getWidth(), ch = canvas.getHeight();
+      if (cw <= 0 || ch <= 0) return;
+      for (int i = 0; i < roles.size(); i++) {
+        final int index = i;
+        final String role = roles.get(i), label = labels.get(i);
+        Button preview = new Button(this);
+        preview.setText(label); preview.setAllCaps(false);
+        preview.setTextSize(Math.max(8, Math.min(16, keyboardPrefs.getInt("game_btn_font_" + role, 10))));
+        preview.setPadding(dp(3), 0, dp(3), 0);
+        int customW = keyboardPrefs.getInt("game_btn_w_" + role, 0);
+        int customH = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+        int width = dp(customW > 0 ? Math.min(150, customW) : (i >= 1 && i <= 3 ? 52 : 66));
+        int height = dp(customH > 0 ? Math.min(100, customH) : 44);
+        boolean accent = "attack".equals(role) || "ultimate".equals(role);
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setColor(accent ? Color.rgb(111, 211, 244) : Color.rgb(43, 61, 78));
+        bg.setCornerRadius(dp(10)); bg.setStroke(dp(1), Color.rgb(111, 211, 244));
+        preview.setTextColor(accent ? Color.rgb(24, 25, 36) : Color.rgb(235, 238, 246));
+        preview.setBackground(bg);
+        float ax = gamepadEditorAnchorX(role), ay = gamepadEditorAnchorY(role);
+        float ox = keyboardPrefs.getFloat("game_ui_x_" + role, 0f);
+        float oy = keyboardPrefs.getFloat("game_ui_y_" + role, 0f);
+        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(width, height);
+        lp.leftMargin = Math.max(0, Math.min(Math.max(0, cw - width), Math.round(ax*cw + dp(Math.round(ox)) - width/2f)));
+        lp.topMargin = Math.max(0, Math.min(Math.max(0, ch - height), Math.round(ay*ch + dp(Math.round(oy)) - height/2f)));
+        canvas.addView(preview, lp); previews.add(preview);
+        final float[] start = new float[2]; final int[] origin = new int[2];
+        preview.setOnTouchListener((v, event) -> {
+          if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            selected[0] = index; selector.setSelection(index); refreshSelection.run();
+            start[0] = event.getRawX(); start[1] = event.getRawY();
+            android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) preview.getLayoutParams();
+            origin[0] = p.leftMargin; origin[1] = p.topMargin; preview.bringToFront();
+            return true;
+          }
+          if (event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+            android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) preview.getLayoutParams();
+            p.leftMargin = Math.max(0, Math.min(Math.max(0, canvas.getWidth()-preview.getWidth()), origin[0]+Math.round(event.getRawX()-start[0])));
+            p.topMargin = Math.max(0, Math.min(Math.max(0, canvas.getHeight()-preview.getHeight()), origin[1]+Math.round(event.getRawY()-start[1])));
+            preview.setLayoutParams(p);
+            float d = Math.max(1f, getResources().getDisplayMetrics().density);
+            float dx = (p.leftMargin + preview.getWidth()/2f - gamepadEditorAnchorX(role)*canvas.getWidth())/d;
+            float dy = (p.topMargin + preview.getHeight()/2f - gamepadEditorAnchorY(role)*canvas.getHeight())/d;
+            keyboardPrefs.edit().putFloat("game_ui_x_"+role, dx).putFloat("game_ui_y_"+role, dy).apply();
+            recordGamepadDiagnostic("LAYOUT_CANVAS_MOVE", "role="+role+", offsetDp=("+Math.round(dx)+","+Math.round(dy)+")");
+            return true;
+          }
+          if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+            Toast.makeText(FloatingKeyboardService.this, label+" tersimpan otomatis.", Toast.LENGTH_SHORT).show();
+            return true;
+          }
+          return true;
+        });
+      }
+      refreshSelection.run();
+    });
+    selector.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+      @Override public void onItemSelected(android.widget.AdapterView<?> p, View v, int position, long id) {
+        selected[0] = position; refreshSelection.run();
+        if (position >= 0 && position < previews.size()) previews.get(position).bringToFront();
+      }
+      @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+    });
+    reset.setOnClickListener(v -> {
+      android.app.AlertDialog confirm = new android.app.AlertDialog.Builder(this)
+          .setTitle("Reset posisi kanvas?")
+          .setMessage("Offset posisi tombol direset ke nol. Mapping HUD game tidak diubah.")
+          .setPositiveButton("Reset", (d, w) -> {
+            android.content.SharedPreferences.Editor edit = keyboardPrefs.edit();
+            for (String key : keyboardPrefs.getAll().keySet())
+              if (key.startsWith("game_ui_x_") || key.startsWith("game_ui_y_")) edit.remove(key);
+            edit.apply();
+            Toast.makeText(this, "Posisi direset. Tutup lalu buka editor lagi untuk melihat tata letak awal.", Toast.LENGTH_SHORT).show();
+          }).setNegativeButton("Batal", null).create();
+      showServiceOverlayDialog(confirm);
+    });
+    android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("EDITOR GAMEPAD · KANVAS BEBAS")
+        .setView(root)
+        .setNegativeButton("Tutup", (d, w) -> {
+          keyboardPrefs.edit().putBoolean("gamepad_edit_mode", false).apply(); rebuildKeyboard();
+        }).create();
+    showServiceOverlayDialog(dialog);
+    if (dialog.getWindow() != null) dialog.getWindow().setLayout(
+        Math.max(dp(280), Math.min(getResources().getDisplayMetrics().widthPixels-dp(24), dp(760))),
+        Math.max(dp(360), Math.min(getResources().getDisplayMetrics().heightPixels-dp(48), dp(620))));
+    save.setOnClickListener(v -> {
+      keyboardPrefs.edit().putBoolean("gamepad_edit_mode", false).apply();
+      recordGamepadDiagnostic("LAYOUT_CANVAS_SAVED", "controls="+roles.size());
+      dialog.dismiss(); rebuildKeyboard();
+      Toast.makeText(this, "Posisi diterapkan. Mapping HUD tetap tersimpan.", Toast.LENGTH_SHORT).show();
+    });
+  }
+
+  private float gamepadEditorAnchorX(String role) {
+    if ("ultimate".equals(role)) return 0.78f;
+    if ("skill1".equals(role)) return 0.68f;
+    if ("skill2".equals(role)) return 0.80f;
+    if ("skill3".equals(role)) return 0.92f;
+    if ("spell".equals(role)) return 0.58f;
+    if ("attack".equals(role)) return 0.76f;
+    if ("upgrade".equals(role)) return 0.42f;
+    if ("recall".equals(role)) return 0.55f;
+    if (role.startsWith("custom_")) return 0.88f - (Math.min(3, Integer.parseInt(role.substring(7))-1)*0.13f);
+    return 0.5f;
+  }
+
+  private float gamepadEditorAnchorY(String role) {
+    if ("ultimate".equals(role)) return 0.18f;
+    if ("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role)) return 0.34f;
+    if ("spell".equals(role) || "upgrade".equals(role) || "recall".equals(role)) return 0.56f;
+    if ("attack".equals(role) || role.startsWith("custom_")) return 0.78f;
+    return 0.5f;
   }
 
   private void confirmResetGamepadButtonPositions() {
