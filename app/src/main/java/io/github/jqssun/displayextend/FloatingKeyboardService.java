@@ -1385,9 +1385,9 @@ public class FloatingKeyboardService extends Service {
               dragging[0] = true;
               dragStart[0] = event.getRawX();
               dragStart[1] = event.getRawY();
-              android.widget.FrameLayout.LayoutParams p = (android.widget.FrameLayout.LayoutParams) v.getLayoutParams();
-              origin[0] = p.leftMargin;
-              origin[1] = p.topMargin;
+              android.widget.FrameLayout.LayoutParams downParams = (android.widget.FrameLayout.LayoutParams) v.getLayoutParams();
+              origin[0] = downParams.leftMargin;
+              origin[1] = downParams.topMargin;
               v.setAlpha(0.72f);
               v.bringToFront();
               return true;
