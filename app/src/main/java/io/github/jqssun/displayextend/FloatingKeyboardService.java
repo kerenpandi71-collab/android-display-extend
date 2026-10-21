@@ -537,7 +537,11 @@ public class FloatingKeyboardService extends Service {
     Button mode = new Button(this);
     mode.setText("⌨");
     mode.setAllCaps(false); mode.setTextSize(10); styleButton(mode, false);
-    mode.setOnClickListener(v -> { gamepadMode = false; rebuildKeyboard(); });
+    mode.setOnClickListener(v -> {
+      gamepadMode = false;
+      keyboardPrefs.edit().putBoolean("gamepad_mode", false).apply();
+      rebuildKeyboard();
+    });
     titleRow.addView(mode, new LinearLayout.LayoutParams(dp(34), dp(32)));
     Button close = new Button(this);
     close.setText("×"); close.setAllCaps(false); styleButton(close, false);
@@ -2944,6 +2948,14 @@ public class FloatingKeyboardService extends Service {
 
   private int dp(int value) {
     return Math.round(value * getResources().getDisplayMetrics().density);
+  }
+
+  @Override
+  public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
+    mainHandler.post(() -> {
+      if (keyboardView != null) rebuildKeyboard();
+    });
   }
 
   @Override
