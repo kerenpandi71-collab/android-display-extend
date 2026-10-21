@@ -1554,7 +1554,8 @@ public class FloatingKeyboardService extends Service {
     private final String label;
     private final String role;
     private float cx, cy, radius, knobX, knobY;
-    private float lastFingerX, lastFingerY;
+    private float gestureStartX, gestureStartY;
+    private float aimOriginX, aimOriginY;
     private boolean active;
     private float[] currentTarget = new float[2];
 
@@ -1607,36 +1608,36 @@ public class FloatingKeyboardService extends Service {
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
           active = true;
-          lastFingerX = event.getX();
-          lastFingerY = event.getY();
-          knobX = lastFingerX;
-          knobY = lastFingerY;
+          gestureStartX = event.getX();
+          gestureStartY = event.getY();
+          knobX = cx;
+          knobY = cy;
           currentTarget = gameTouchController.pointFor(role);
+          aimOriginX = currentTarget[0];
+          aimOriginY = currentTarget[1];
           boolean accepted = gameTouchController.press(role, currentTarget);
           recordGamepadDiagnostic("SKILL_STICK_DOWN", "role=" + role + ", accepted=" + accepted);
           invalidate();
           return true;
         case MotionEvent.ACTION_MOVE:
           if (!active) return true;
-          float fingerX = event.getX();
-          float fingerY = event.getY();
-          float deltaX = fingerX - lastFingerX;
-          float deltaY = fingerY - lastFingerY;
-          lastFingerX = fingerX;
-          lastFingerY = fingerY;
-          // Relative drag: each finger movement nudges the injected touch point.
-          // Unlike a normalized mini-stick, this does not hit maximum travel after a
-          // short swipe and does not snap back toward a fixed origin.
-          float sensitivity = 1.65f;
-          currentTarget[0] += deltaX * sensitivity;
-          currentTarget[1] += deltaY * sensitivity;
+          // Treat the pad as a true directional stick: the finger's vector from
+          // its initial contact sets the aim direction. This prevents accumulated
+          // relative-drag drift and lets a circular hand movement rotate aim
+          // smoothly around the mapped skill point.
+          float dx = event.getX() - gestureStartX;
+          float dy = event.getY() - gestureStartY;
+          float gestureRadius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
+          float nx = dx / gestureRadius;
+          float ny = dy / gestureRadius;
+          float magnitude = (float) Math.hypot(nx, ny);
+          if (magnitude > 1f) { nx /= magnitude; ny /= magnitude; }
+          float aimRadius = gameTouchController.getMoveRadius();
           android.util.DisplayMetrics targetMetrics = gameTouchController.metrics();
-          currentTarget[0] = Math.max(0f, Math.min(targetMetrics.widthPixels - 1f, currentTarget[0]));
-          currentTarget[1] = Math.max(0f, Math.min(targetMetrics.heightPixels - 1f, currentTarget[1]));
-          float padLimitX = Math.max(dp(8), getWidth() / 2f - dp(8));
-          float padLimitY = Math.max(dp(8), getHeight() / 2f - dp(8));
-          knobX = Math.max(dp(8), Math.min(getWidth() - dp(8), fingerX));
-          knobY = Math.max(dp(8), Math.min(getHeight() - dp(8), fingerY));
+          currentTarget[0] = Math.max(0f, Math.min(targetMetrics.widthPixels - 1f, aimOriginX + nx * aimRadius));
+          currentTarget[1] = Math.max(0f, Math.min(targetMetrics.heightPixels - 1f, aimOriginY + ny * aimRadius));
+          knobX = cx + nx * radius * 0.82f;
+          knobY = cy + ny * radius * 0.82f;
           // Keep every live sample on the input path; do not format/log text here.
           gameTouchController.moveSmooth(role, currentTarget[0], currentTarget[1]);
           invalidate();
