@@ -1270,6 +1270,9 @@ public class FloatingKeyboardService extends Service {
       edit.putFloat("game_y_custom_" + i, keyboardPrefs.getFloat("game_y_custom_" + next, 0.5f));
       copyIntPreference(edit, "game_btn_w_custom_" + i, "game_btn_w_custom_" + next, 0);
       copyIntPreference(edit, "game_btn_h_custom_" + i, "game_btn_h_custom_" + next, 0);
+      String nextMap = keyboardPrefs.getString("game_map_custom_" + next, null);
+      if (nextMap != null) edit.putString("game_map_custom_" + i, nextMap);
+      else edit.remove("game_map_custom_" + i);
     }
     edit.remove("custom_trigger_label_" + count);
     edit.remove("game_x_custom_" + count);
