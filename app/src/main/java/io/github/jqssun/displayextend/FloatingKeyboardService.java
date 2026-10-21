@@ -1637,6 +1637,21 @@ public class FloatingKeyboardService extends Service {
     }
     final float[] start = new float[2];
     final float[] aimOrigin = new float[2];
+    final float[] viewOrigin = new float[2];
+    final boolean[] repositioning = new boolean[1];
+    final boolean[] movedForReposition = new boolean[1];
+    final Handler dragHandler = new Handler(Looper.getMainLooper());
+    final Runnable beginReposition = () -> {
+      repositioning[0] = true;
+      movedForReposition[0] = false;
+      viewOrigin[0] = b.getTranslationX();
+      viewOrigin[1] = b.getTranslationY();
+      gameTouchController.release(mappedRole);
+      b.setPressed(false);
+      b.setAlpha(0.78f);
+      recordGamepadDiagnostic("BUTTON_REPOSITION_START", "role=" + role + ", label=" + label);
+      Toast.makeText(FloatingKeyboardService.this, "Seret " + label + " ke posisi baru.", Toast.LENGTH_SHORT).show();
+    };
     b.setOnTouchListener((v, e) -> {
       switch (e.getActionMasked()) {
         case MotionEvent.ACTION_DOWN:
@@ -1644,6 +1659,8 @@ public class FloatingKeyboardService extends Service {
           // saturate almost immediately when the finger leaves the small skill button.
           start[0] = e.getRawX();
           start[1] = e.getRawY();
+          repositioning[0] = false;
+          movedForReposition[0] = false;
           float[] down = gameTouchController.pointFor(mappedRole);
           aimOrigin[0] = down[0];
           aimOrigin[1] = down[1];
@@ -1652,11 +1669,23 @@ public class FloatingKeyboardService extends Service {
           recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
               + Math.round(down[1]) + "), display=" + targetDisplayId);
-          State.log("gamepad button down: role=" + role + ", accepted=" + accepted
-              + ", target=(" + Math.round(down[0]) + "," + Math.round(down[1]) + ")");
+          dragHandler.postDelayed(beginReposition, 550L);
           v.setPressed(true);
           return true;
         case MotionEvent.ACTION_MOVE:
+          if (repositioning[0]) {
+            float dx = e.getRawX() - start[0];
+            float dy = e.getRawY() - start[1];
+            if (Math.abs(dx) + Math.abs(dy) > dp(3)) movedForReposition[0] = true;
+            if (movedForReposition[0]) {
+              b.setTranslationX(viewOrigin[0] + dx);
+              b.setTranslationY(viewOrigin[1] + dy);
+            }
+            return true;
+          }
+          if (Math.abs(e.getRawX() - start[0]) + Math.abs(e.getRawY() - start[1]) > dp(12)) {
+            dragHandler.removeCallbacks(beginReposition);
+          }
           if (aimable && gameTouchController.isActive(mappedRole)) {
             android.util.DisplayMetrics dm = gameTouchController.metrics();
             // Convert the real finger drag into normalized stick-like movement.
@@ -1680,23 +1709,35 @@ public class FloatingKeyboardService extends Service {
             gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
-        case MotionEvent.ACTION_UP: {
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL: {
+          dragHandler.removeCallbacks(beginReposition);
+          if (repositioning[0]) {
+            b.setAlpha(1f);
+            if (movedForReposition[0]) {
+              float density = Math.max(1f, getResources().getDisplayMetrics().density);
+              keyboardPrefs.edit()
+                  .putFloat("game_ui_x_" + role, b.getTranslationX() / density)
+                  .putFloat("game_ui_y_" + role, b.getTranslationY() / density)
+                  .apply();
+              recordGamepadDiagnostic("BUTTON_REPOSITION_SAVED", "role=" + role
+                  + ", tx=" + Math.round(b.getTranslationX()) + ", ty=" + Math.round(b.getTranslationY()));
+              Toast.makeText(FloatingKeyboardService.this, "Posisi " + label + " tersimpan.", Toast.LENGTH_SHORT).show();
+            }
+            repositioning[0] = false;
+          }
           boolean releaseAccepted = gameTouchController.release(mappedRole);
           recordGamepadDiagnostic("BUTTON_UP", "label=" + label + ", role=" + mappedRole
-              + ", accepted=" + releaseAccepted + ", activeAfter=" + gameTouchController.isActive(mappedRole));
-          v.setPressed(false);
-          return true;
-        }
-        case MotionEvent.ACTION_CANCEL: {
-          boolean cancelAccepted = gameTouchController.release(mappedRole);
-          recordGamepadDiagnostic("BUTTON_CANCEL", "label=" + label + ", role=" + mappedRole
-              + ", accepted=" + cancelAccepted);
+              + ", accepted=" + releaseAccepted);
           v.setPressed(false);
           return true;
         }
       }
       return true;
     });
+    float density = Math.max(1f, getResources().getDisplayMetrics().density);
+    b.setTranslationX(dp(Math.round(keyboardPrefs.getFloat("game_ui_x_" + role, 0f))));
+    b.setTranslationY(dp(Math.round(keyboardPrefs.getFloat("game_ui_y_" + role, 0f))));
   }
 
   private final class GameTouchController {
