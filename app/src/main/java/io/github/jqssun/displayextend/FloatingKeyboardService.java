@@ -61,6 +61,7 @@ public class FloatingKeyboardService extends Service {
   private int verticalOffsetDp = 12;
   private int keyboardLayout = 0;
   private boolean settingsVisible = false;
+  private Button landscapeGamepadSettingsButton;
   private float dragStartX, dragStartY;
   private int dragOriginX, dragOriginY;
   private android.content.SharedPreferences keyboardPrefs;
@@ -732,13 +733,32 @@ public class FloatingKeyboardService extends Service {
     right.setOrientation(LinearLayout.VERTICAL);
     right.setPadding(dp(5), dp(5), dp(5), dp(5));
     right.setBackground(createPanelBackground());
+    LinearLayout header = new LinearLayout(this);
+    header.setOrientation(LinearLayout.HORIZONTAL);
+    header.setGravity(Gravity.CENTER_VERTICAL);
     TextView trackpadTitle = new TextView(this);
     trackpadTitle.setText(gamepadMode ? "🎮  Gamepad kanan" : "🖱  Trackpad");
     trackpadTitle.setTextColor(Color.rgb(225, 235, 255));
     trackpadTitle.setTextSize(12);
     trackpadTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     trackpadTitle.setGravity(Gravity.CENTER_VERTICAL);
-    right.addView(trackpadTitle, new LinearLayout.LayoutParams(-1, dp(32)));
+    header.addView(trackpadTitle, new LinearLayout.LayoutParams(0, dp(32), 1f));
+    if (gamepadMode) {
+      Button settingsIcon = new Button(this);
+      settingsIcon.setText("⚙");
+      settingsIcon.setAllCaps(false);
+      settingsIcon.setTextSize(16);
+      settingsIcon.setMinWidth(0);
+      settingsIcon.setMinimumWidth(0);
+      settingsIcon.setPadding(0, 0, 0, 0);
+      settingsIcon.setContentDescription("Pengaturan gamepad");
+      styleButton(settingsIcon, true);
+      settingsIcon.setOnClickListener(v -> {
+        if (landscapeGamepadSettingsButton != null) landscapeGamepadSettingsButton.performClick();
+      });
+      header.addView(settingsIcon, new LinearLayout.LayoutParams(dp(34), dp(32)));
+    }
+    right.addView(header, new LinearLayout.LayoutParams(-1, dp(32)));
     if (gamepadMode) {
       View gamepadSpacer = new View(this);
       right.addView(gamepadSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -1082,6 +1102,8 @@ public class FloatingKeyboardService extends Service {
     // Solid black gamepad surface; keep the actual controls and settings button.
     panel.setBackgroundColor(Color.BLACK);
     Button gamepadSettings = new Button(this);
+    landscapeGamepadSettingsButton = gamepadSettings;
+    gamepadSettings.setVisibility(View.GONE);
     gamepadSettings.setText("PENGATURAN GAMEPAD");
     gamepadSettings.setAllCaps(false);
     gamepadSettings.setTextSize(10);
@@ -1373,7 +1395,7 @@ public class FloatingKeyboardService extends Service {
     final TextView fontValue = new TextView(this);
     final TextView circleValue = new TextView(this);
     android.widget.SeekBar circleSize = new android.widget.SeekBar(this);
-    circleSize.setMax(80); // 32..112 dp
+    circleSize.setMax(368); // 32..400 dp
     android.widget.SeekBar width = new android.widget.SeekBar(this);
     width.setMax(220);
     android.widget.SeekBar height = new android.widget.SeekBar(this);
@@ -1413,7 +1435,7 @@ public class FloatingKeyboardService extends Service {
       int f = keyboardPrefs.getInt("game_btn_font_" + role, 9);
       int sh = keyboardPrefs.getInt("game_btn_shape_" + role, 0);
       int diameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
-      circleSize.setProgress(Math.max(0, Math.min(80, diameter - 32)));
+      circleSize.setProgress(Math.max(0, Math.min(368, diameter - 32)));
       circleValue.setText("Diameter lingkaran: " + diameter + " dp");
       circleSize.setEnabled("skill1".equals(role) || "skill2".equals(role) || "skill3".equals(role));
       width.setProgress(Math.max(0, Math.min(220, w)));
@@ -1564,8 +1586,8 @@ public class FloatingKeyboardService extends Service {
       // Larger locked skill face: 72dp diameter while preserving a generous
       // surrounding touch-sensitive area for smooth aiming gestures.
       int savedDiameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
-      float buttonRadius = Math.min(dp(54), Math.max(dp(20),
-          Math.min(dp(savedDiameter) / 2f, Math.min(getWidth() * 0.44f, getHeight() * 0.46f))));
+      float buttonRadius = Math.max(dp(20),
+          Math.min(dp(savedDiameter) / 2f, Math.min(getWidth() * 0.48f, getHeight() * 0.48f)));
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(Color.rgb(13, 20, 31));
       canvas.drawCircle(cx, cy, buttonRadius + dp(3), paint);
