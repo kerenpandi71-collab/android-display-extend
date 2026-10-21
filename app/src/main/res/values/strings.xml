@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Extend</string>
+    <string name="app_name">Saku Dex</string>
     <string name="accessibility_service_description">Layanan aksesibilitas untuk mengirim sentuhan ke layar sekunder</string>
     <string name="back_button">Kembali</string>
     <string name="home_button">Beranda</string>
@@ -43,7 +43,7 @@
 
     <!-- Accessibility disclosure -->
     <string name="accessibility_consent_title">Aktifkan akses aksesibilitas</string>
-    <string name="accessibility_consent_message">Extend menggunakan Layanan Aksesibilitas untuk mengendalikan layar eksternal: menjalankan navigasi dari panel sentuh dan tombol melayang, menampilkan kursor, serta membaca detail jendela agar input diarahkan ke jendela aktif pada layar yang benar. Informasi ini hanya digunakan di perangkat dan tidak dikumpulkan, disimpan, atau dibagikan. Aktifkan Layanan Aksesibilitas?</string>
+    <string name="accessibility_consent_message">Saku Dex menggunakan Layanan Aksesibilitas untuk mengendalikan layar eksternal: menjalankan navigasi dari panel sentuh dan tombol melayang, menampilkan kursor, serta membaca detail jendela agar input diarahkan ke jendela aktif pada layar yang benar. Informasi ini hanya digunakan di perangkat dan tidak dikumpulkan, disimpan, atau dibagikan. Aktifkan Layanan Aksesibilitas?</string>
     <string name="accessibility_consent_agree">Aktifkan</string>
     <string name="accessibility_consent_decline">Nanti saja</string>
     <string name="shizuku_required">Izin Shizuku diperlukan</string>
