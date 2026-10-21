@@ -313,7 +313,12 @@ public class FloatingKeyboardService extends Service {
     report.append("Android Display Extend — Gamepad Diagnostics\n")
         .append("Display target: ").append(targetDisplayId).append('\n')
         .append("Mode: ").append(gamepadMode ? "GAMEPAD" : "KEYBOARD/TRACKPAD").append('\n')
-        .append("Root input: ").append(rootMode).append('\n')
+        .append("Input path: ").append(describeInputPath()).append('\n')
+        .append("Root shell mode: ").append(rootMode).append('\n')
+        .append("Shizuku permission: ").append(safeShizukuPermission()).append('\n')
+        .append("Shizuku InputManager available: ").append(inputManager != null).append('\n')
+        .append("Accessibility service enabled: ").append(isAccessibilityServiceEnabled()).append('\n')
+        .append("Target display: ").append(targetDisplayId).append('\n')
         .append("Log lines retained: ").append(gamepadDiagnosticLines.size()).append('/')
         .append(MAX_GAMEPAD_DIAGNOSTIC_LINES).append('\n')
         .append("Note: accepted=true means Android accepted injection, not that the game registered it.\n")
@@ -322,6 +327,61 @@ public class FloatingKeyboardService extends Service {
       for (String line : gamepadDiagnosticLines) report.append(line).append('\n');
     }
     return report.toString();
+  }
+
+  private String describeInputPath() {
+    if (rootMode) return "ROOT shell fallback aktif; game touch tetap memakai InputManager bila tersedia";
+    if (inputManager != null) return "Shizuku InputManager";
+    if (ShizukuUtils.hasPermission()) return "Izin Shizuku ada, InputManager belum tersedia";
+    return "Tidak terdeteksi: Shizuku InputManager tidak tersedia; periksa izin/root. Accessibility bukan jalur utama injeksi gamepad pada implementasi ini";
+  }
+
+  private String safeShizukuPermission() {
+    try { return String.valueOf(ShizukuUtils.hasPermission()); }
+    catch (Throwable ignored) { return "unknown"; }
+  }
+
+  private boolean isAccessibilityServiceEnabled() {
+    try {
+      int enabled = android.provider.Settings.Secure.getInt(
+          getContentResolver(), android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0);
+      if (enabled != 1) return false;
+      String services = android.provider.Settings.Secure.getString(
+          getContentResolver(), android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+      return services != null && services.toLowerCase(java.util.Locale.ROOT).contains(getPackageName().toLowerCase(java.util.Locale.ROOT));
+    } catch (Throwable ignored) { return false; }
+  }
+
+  private void saveGamepadDiagnosticToDownloads() {
+    String report = buildGamepadDiagnosticReport();
+    String stamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+        .format(new java.util.Date());
+    String name = "DisplayExtend_InputPath_" + stamp + ".txt";
+    try {
+      if (Build.VERSION.SDK_INT >= 29) {
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name);
+        values.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+        values.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS);
+        android.net.Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new java.io.IOException("MediaStore tidak memberi URI");
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+          if (out == null) throw new java.io.IOException("Output stream kosong");
+          out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+      } else {
+        java.io.File dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+        if (!dir.exists() && !dir.mkdirs()) throw new java.io.IOException("Folder Download tidak bisa dibuat");
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(new java.io.File(dir, name))) {
+          out.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+      }
+      Toast.makeText(this, "Log tersimpan di Download/" + name, Toast.LENGTH_LONG).show();
+      recordGamepadDiagnostic("LOG_SAVED", "Download/" + name);
+    } catch (Throwable t) {
+      recordGamepadDiagnostic("LOG_SAVE_ERROR", t.getClass().getSimpleName() + ": " + t.getMessage());
+      Toast.makeText(this, "Gagal menyimpan log: " + t.getMessage(), Toast.LENGTH_LONG).show();
+    }
   }
 
   private void showGamepadDiagnostics() {
@@ -338,7 +398,8 @@ public class FloatingKeyboardService extends Service {
     android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
         .setTitle("Log diagnosis gamepad")
         .setView(scroll)
-        .setPositiveButton("Salin log", (d, which) -> {
+        .setPositiveButton("Simpan ke Download", (d, which) -> saveGamepadDiagnosticToDownloads())
+        .setNeutralButton("Salin log", (d, which) -> {
           String report = buildGamepadDiagnosticReport();
           android.content.ClipboardManager clipboard =
               (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -347,7 +408,6 @@ public class FloatingKeyboardService extends Service {
             Toast.makeText(this, "Log disalin. Tempelkan ke chat untuk dianalisis.", Toast.LENGTH_LONG).show();
           }
         })
-        .setNeutralButton("Bagikan", (d, which) -> {
           android.content.Intent share = new android.content.Intent(android.content.Intent.ACTION_SEND);
           share.setType("text/plain");
           share.putExtra(android.content.Intent.EXTRA_SUBJECT, "Android Display Extend gamepad diagnostics");
