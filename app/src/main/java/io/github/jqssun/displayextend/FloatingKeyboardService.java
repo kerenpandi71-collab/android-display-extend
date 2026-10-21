@@ -1080,7 +1080,7 @@ public class FloatingKeyboardService extends Service {
     gamepadSettings.setOnClickListener(v -> {
       android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
           .setTitle("Pengaturan gamepad")
-          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol", "Nama 9 Kotak"},
+          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol", "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: ON/OFF"},
               (dialog, which) -> {
                 switch (which) {
                   case 0:
@@ -1101,6 +1101,16 @@ public class FloatingKeyboardService extends Service {
                   case 4: confirmResetGamepadButtonPositions(); break;
                   case 5: showGamepadLayoutEditor(); break;
                   case 6: showGameSlotNameDialog(); break;
+                  case 7: {
+                    boolean enabled = !keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false);
+                    keyboardPrefs.edit().putBoolean("gamepad_hold_reposition_enabled", enabled).apply();
+                    Toast.makeText(this, enabled
+                        ? "Tahan untuk memindahkan: AKTIF. Tahan tombol 550 ms lalu seret."
+                        : "Tahan untuk memindahkan: NONAKTIF. Gunakan Atur Posisi Tombol saat ingin mengedit.",
+                        Toast.LENGTH_LONG).show();
+                    recordGamepadDiagnostic("REPOSITION_HOLD_TOGGLE", "enabled=" + enabled);
+                    break;
+                  }
                 }
               }).create();
       showServiceOverlayDialog(settingsDialog);
@@ -2021,7 +2031,7 @@ public class FloatingKeyboardService extends Service {
           recordGamepadDiagnostic("BUTTON_DOWN", "label=" + label + ", role=" + mappedRole
               + ", accepted=" + accepted + ", target=(" + Math.round(down[0]) + ","
               + Math.round(down[1]) + "), display=" + targetDisplayId);
-          dragHandler.postDelayed(beginReposition, 550L);
+          if (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false)) {\n            dragHandler.postDelayed(beginReposition, 550L);\n          }
           v.setPressed(true);
           return true;
         case MotionEvent.ACTION_MOVE:
@@ -2053,11 +2063,9 @@ public class FloatingKeyboardService extends Service {
             float aimRadius = Math.max(30f, Math.min(dm.widthPixels, dm.heightPixels) * 0.18f);
             float targetX = Math.max(0f, Math.min(dm.widthPixels - 1f, aimOrigin[0] + nx * aimRadius));
             float targetY = Math.max(0f, Math.min(dm.heightPixels - 1f, aimOrigin[1] + ny * aimRadius));
-            recordGamepadDiagnostic("AIM_TOUCH", "role=" + mappedRole + ", fingerDelta=("
-                + Math.round(dragX) + "," + Math.round(dragY) + "), normalized=("
-                + String.format(java.util.Locale.ROOT, "%.2f", nx) + ","
-                + String.format(java.util.Locale.ROOT, "%.2f", ny) + ")");
             updateGamepadCoordinateIndicator(mappedRole, targetX, targetY);
+            // Keep the hot path lean: synchronous per-frame logging adds latency to
+            // touch injection on slower devices. Detailed timing remains in INJECT logs.
             gameTouchController.moveSmooth(mappedRole, targetX, targetY);
           }
           return true;
@@ -2214,16 +2222,17 @@ public class FloatingKeyboardService extends Service {
       float dx = targetX - contact.x;
       float dy = targetY - contact.y;
       if (Math.hypot(dx, dy) < 0.75f) return true;
-      long now = android.os.SystemClock.uptimeMillis();
-      long interval = lastGamepadMoveLogAt == 0L ? 0L : now - lastGamepadMoveLogAt;
-      lastGamepadMoveLogAt = now;
-      long started = android.os.SystemClock.elapsedRealtimeNanos();
+      // Send each latest real touch sample immediately; do not queue animation frames
+      // behind the finger, which creates perceptible aiming delay.
       boolean accepted = move(role, targetX, targetY);
-      long costMs = (android.os.SystemClock.elapsedRealtimeNanos() - started) / 1000000L;
-      recordGamepadDiagnostic("AIM_MOVE", "role=" + role + ", dx=" + Math.round(dx)
-          + ", dy=" + Math.round(dy) + ", intervalMs=" + interval + ", injectCostMs=" + costMs
-          + ", accepted=" + accepted + ", target=(" + Math.round(contact.x) + ","
-          + Math.round(contact.y) + "), activePointers=" + contacts.size());
+      long now = android.os.SystemClock.uptimeMillis();
+      if (now - lastGamepadMoveLogAt >= 250L) {
+        lastGamepadMoveLogAt = now;
+        recordGamepadDiagnostic("AIM_MOVE", "role=" + role + ", dx=" + Math.round(dx)
+            + ", dy=" + Math.round(dy) + ", accepted=" + accepted
+            + ", target=(" + Math.round(contact.x) + "," + Math.round(contact.y)
+            + "), activePointers=" + contacts.size());
+      }
       if (!accepted) State.log("gamepad aim injection rejected: role=" + role
           + ", dx=" + Math.round(dx) + ", dy=" + Math.round(dy));
       return accepted;
