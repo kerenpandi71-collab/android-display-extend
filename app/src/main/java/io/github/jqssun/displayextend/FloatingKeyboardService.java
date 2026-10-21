@@ -1294,7 +1294,7 @@ public class FloatingKeyboardService extends Service {
       });
       dialog.getButton(android.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
         final int selected = spinner.getSelectedItemPosition() + 1;
-        new android.app.AlertDialog.Builder(this)
+        android.app.AlertDialog confirmDialog = new android.app.AlertDialog.Builder(this)
             .setTitle("Hapus " + getCustomTriggerLabel(selected) + "?")
             .setMessage("Tombol ini dan posisi mapping-nya akan dihapus. Trigger lain akan dirapikan urutannya.")
             .setPositiveButton("Hapus", (confirm, which) -> {
@@ -1303,7 +1303,8 @@ public class FloatingKeyboardService extends Service {
               rebuildKeyboard();
             })
             .setNegativeButton("Batal", null)
-            .show();
+            .create();
+        showServiceOverlayDialog(confirmDialog);
       });
     });
     dialog.show();
@@ -1322,6 +1323,8 @@ public class FloatingKeyboardService extends Service {
       copyIntPreference(edit, "game_btn_h_custom_" + i, "game_btn_h_custom_" + next, 0);
       copyIntPreference(edit, "game_btn_font_custom_" + i, "game_btn_font_custom_" + next, 9);
       copyIntPreference(edit, "game_btn_shape_custom_" + i, "game_btn_shape_custom_" + next, 0);
+      edit.putFloat("game_ui_x_custom_" + i, keyboardPrefs.getFloat("game_ui_x_custom_" + next, 0f));
+      edit.putFloat("game_ui_y_custom_" + i, keyboardPrefs.getFloat("game_ui_y_custom_" + next, 0f));
       String nextMap = keyboardPrefs.getString("game_map_custom_" + next, null);
       if (nextMap != null) edit.putString("game_map_custom_" + i, nextMap);
       else edit.remove("game_map_custom_" + i);
@@ -1334,6 +1337,8 @@ public class FloatingKeyboardService extends Service {
     edit.remove("game_btn_h_custom_" + count);
     edit.remove("game_btn_font_custom_" + count);
     edit.remove("game_btn_shape_custom_" + count);
+    edit.remove("game_ui_x_custom_" + count);
+    edit.remove("game_ui_y_custom_" + count);
     edit.putInt("custom_trigger_count", count - 1).apply();
     recordGamepadDiagnostic("CUSTOM_TRIGGER_DELETE", "deleted index=" + selected + ", remaining=" + (count - 1));
   }
