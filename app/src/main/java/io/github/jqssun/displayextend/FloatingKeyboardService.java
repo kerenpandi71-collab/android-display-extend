@@ -88,7 +88,6 @@ public class FloatingKeyboardService extends Service {
   private boolean symbolsMode = false;
   private boolean gamepadMode = false;
   private final GameTouchController gameTouchController = new GameTouchController();
-  private final java.util.LinkedHashMap<String, Button> gamepadButtonsByRole = new java.util.LinkedHashMap<>();
   private final java.util.ArrayDeque<String> gamepadDiagnosticLines = new java.util.ArrayDeque<>();
   private static final int MAX_GAMEPAD_DIAGNOSTIC_LINES = 350;
   private long lastGamepadMoveLogAt = 0L;
@@ -1068,7 +1067,6 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
-    gamepadButtonsByRole.clear();
     allowGamepadButtonOverflow(panel);
     Button gamepadSettings = new Button(this);
     gamepadSettings.setText("PENGATURAN GAMEPAD");
@@ -1078,7 +1076,7 @@ public class FloatingKeyboardService extends Service {
     gamepadSettings.setOnClickListener(v -> {
       android.app.AlertDialog settingsDialog = new android.app.AlertDialog.Builder(this)
           .setTitle("Pengaturan gamepad")
-          .setItems(new String[] {"Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Pilih tombol bertumpuk untuk dipindah"},
+          .setItems(new String[] {"Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default"},
               (dialog, which) -> {
                 switch (which) {
                   case 0:
@@ -1096,7 +1094,7 @@ public class FloatingKeyboardService extends Service {
                         }).create();
                     showServiceOverlayDialog(triggerDialog);
                     break;
-                  case 4: showOverlappingButtonPicker(); break;
+                  case 4: confirmResetGamepadButtonPositions(); break;
                 }
               }).create();
       showServiceOverlayDialog(settingsDialog);
@@ -1629,36 +1627,24 @@ public class FloatingKeyboardService extends Service {
     Toast.makeText(this, "Auto mapping MLBB diterapkan. Sesuaikan jika HUD game berbeda.", Toast.LENGTH_LONG).show();
   }
 
-  private void showOverlappingButtonPicker() {
-    if (gamepadButtonsByRole.isEmpty()) {
-      Toast.makeText(this, "Tombol gamepad belum siap.", Toast.LENGTH_SHORT).show();
-      return;
-    }
-    java.util.ArrayList<String> roles = new java.util.ArrayList<>(gamepadButtonsByRole.keySet());
-    java.util.ArrayList<String> labels = new java.util.ArrayList<>();
-    for (String role : roles) {
-      Button button = gamepadButtonsByRole.get(role);
-      labels.add(button == null ? role : button.getText().toString() + " · " + role);
-    }
-    android.app.AlertDialog picker = new android.app.AlertDialog.Builder(this)
-        .setTitle("Pilih tombol yang tertutup")
-        .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-          String role = roles.get(which);
-          Button selected = gamepadButtonsByRole.get(role);
-          if (selected == null) return;
-          selected.bringToFront();
-          selected.setTranslationZ(dp(32));
-          if (selected.getParent() instanceof android.view.ViewGroup) {
-            android.view.ViewGroup parent = (android.view.ViewGroup) selected.getParent();
-            parent.invalidate();
-            parent.requestLayout();
+  private void confirmResetGamepadButtonPositions() {
+    android.app.AlertDialog resetDialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Reset posisi tombol?")
+        .setMessage("Semua posisi tombol pada panel gamepad akan dikembalikan ke tata letak default. Koordinat target di dalam game dan pemetaan HUD tidak akan diubah.")
+        .setPositiveButton("Reset posisi", (dialog, which) -> {
+          android.content.SharedPreferences.Editor edit = keyboardPrefs.edit();
+          for (String key : keyboardPrefs.getAll().keySet()) {
+            if (key.startsWith("game_ui_x_") || key.startsWith("game_ui_y_")) {
+              edit.remove(key);
+            }
           }
-          Toast.makeText(this, "Tombol " + labels.get(which)
-              + " dibawa ke depan. Tekan-tahan lalu seret.", Toast.LENGTH_LONG).show();
+          edit.apply();
+          Toast.makeText(this, "Posisi tombol direset. Buka ulang panel gamepad untuk menerapkan tata letak default.", Toast.LENGTH_LONG).show();
+          rebuildKeyboard();
         })
         .setNegativeButton("Batal", null)
         .create();
-    showServiceOverlayDialog(picker);
+    showServiceOverlayDialog(resetDialog);
   }
 
   private void addTouchGameButton(LinearLayout row, String label, float weight,
@@ -1732,7 +1718,7 @@ public class FloatingKeyboardService extends Service {
       b.setPressed(false);
       b.setAlpha(0.78f);
       recordGamepadDiagnostic("BUTTON_REPOSITION_START", "role=" + role + ", label=" + label);
-      Toast.makeText(FloatingKeyboardService.this, "Seret " + label + " ke posisi baru.", Toast.LENGTH_SHORT).show();
+      Toast.makeText(FloatingKeyboardService.this, "Tahan lalu seret " + label + " ke posisi baru.", Toast.LENGTH_SHORT).show();
     };
     b.setOnTouchListener((v, e) -> {
       switch (e.getActionMasked()) {
@@ -1805,7 +1791,7 @@ public class FloatingKeyboardService extends Service {
                   .apply();
               recordGamepadDiagnostic("BUTTON_REPOSITION_SAVED", "role=" + role
                   + ", tx=" + Math.round(b.getTranslationX()) + ", ty=" + Math.round(b.getTranslationY()));
-              Toast.makeText(FloatingKeyboardService.this, "Posisi " + label + " tersimpan.", Toast.LENGTH_SHORT).show();
+              Toast.makeText(FloatingKeyboardService.this, "Posisi " + label + " tersimpan. Gunakan tahan lalu seret untuk memindahkan lagi.", Toast.LENGTH_SHORT).show();
             }
             repositioning[0] = false;
           }
@@ -1821,7 +1807,6 @@ public class FloatingKeyboardService extends Service {
     float density = Math.max(1f, getResources().getDisplayMetrics().density);
     b.setTranslationX(dp(Math.round(keyboardPrefs.getFloat("game_ui_x_" + role, 0f))));
     b.setTranslationY(dp(Math.round(keyboardPrefs.getFloat("game_ui_y_" + role, 0f))));
-    gamepadButtonsByRole.put(role, b);
   }
 
   private final class GameTouchController {
