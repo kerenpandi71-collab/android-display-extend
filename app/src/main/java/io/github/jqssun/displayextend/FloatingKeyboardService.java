@@ -11,6 +11,15 @@ import android.os.Looper;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import android.provider.Settings;
+import android.content.ContentValues;
+import android.net.Uri;
+import android.provider.MediaStore;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.InputDevice;
@@ -351,9 +360,38 @@ public class FloatingKeyboardService extends Service {
         Math.max(dp(260), (int) (getResources().getDisplayMetrics().heightPixels * 0.72f)));
   }
 
+  private void installCrashLogHandler() {
+    final Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+    Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+      try {
+        StringWriter trace = new StringWriter();
+        error.printStackTrace(new PrintWriter(trace));
+        String report = "Extend crash report\\nTime: "
+            + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new Date())
+            + "\\nThread: " + thread.getName() + "\\nAndroid: " + Build.VERSION.RELEASE
+            + " (SDK " + Build.VERSION.SDK_INT + ")\\n\\n" + trace;
+        if (Build.VERSION.SDK_INT >= 29) {
+          ContentValues values = new ContentValues();
+          values.put(MediaStore.MediaColumns.DISPLAY_NAME, "Extend_crash_"
+              + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date()) + ".txt");
+          values.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+          values.put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/ExtendLogs");
+          Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+          if (uri != null) {
+            try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
+              if (stream != null) stream.write(report.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+          }
+        }
+      } catch (Throwable ignored) { }
+      if (previous != null) previous.uncaughtException(thread, error);
+    });
+  }
+
   @Override
   public void onCreate() {
     super.onCreate();
+    installCrashLogHandler();
     windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
     keyboardPrefs = getSharedPreferences("floating_keyboard", MODE_PRIVATE);
     widthPercent = keyboardPrefs.getInt("width_percent", 70);
@@ -984,30 +1022,33 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
-    // Keep mapping and diagnostics at the top so they remain reachable on short screens.
-    // Add/manage triggers belong with the top-level settings, not below skill controls.
-    addCustomTriggerControls(panel);
-
-    visualMappingButton = new Button(this);
-    visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
-    visualMappingButton.setAllCaps(false); visualMappingButton.setTextSize(10); styleButton(visualMappingButton, true);
-    visualMappingButton.setOnClickListener(v -> {
-      if (visualMappingMarkerParams != null) saveVisualMappingPosition();
-      else showVisualMappingPicker();
-    });
-    panel.addView(visualMappingButton, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button diagnostics = new Button(this);
-    diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
-    diagnostics.setAllCaps(false); diagnostics.setTextSize(10); styleButton(diagnostics, true);
-    diagnostics.setOnClickListener(v -> showGamepadDiagnostics());
-    panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button resizeControls = new Button(this);
-    resizeControls.setText("UKURAN TOMBOL · RESIZE");
-    resizeControls.setAllCaps(false); resizeControls.setTextSize(10); styleButton(resizeControls, true);
-    resizeControls.setOnClickListener(v -> showControlSizeDialog());
-    panel.addView(resizeControls, new LinearLayout.LayoutParams(-1, dp(32)));
+    Button gamepadSettings = new Button(this);
+    gamepadSettings.setText("PENGATURAN GAMEPAD");
+    gamepadSettings.setAllCaps(false);
+    gamepadSettings.setTextSize(10);
+    styleButton(gamepadSettings, true);
+    gamepadSettings.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+        .setTitle("Pengaturan gamepad")
+        .setItems(new String[] {"Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize", "Trigger · Tambah / Kelola"},
+            (dialog, which) -> {
+              switch (which) {
+                case 0:
+                  if (visualMappingMarkerParams != null) saveVisualMappingPosition();
+                  else showVisualMappingPicker();
+                  break;
+                case 1: showGamepadDiagnostics(); break;
+                case 2: showControlSizeDialog(); break;
+                case 3:
+                  new android.app.AlertDialog.Builder(this)
+                      .setTitle("Trigger")
+                      .setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> {
+                        if (action == 0) showAddCustomTriggerDialog();
+                        else showManageCustomTriggersDialog();
+                      }).show();
+                  break;
+              }
+            }).show());
+    panel.addView(gamepadSettings, new LinearLayout.LayoutParams(-1, dp(36)));
 
     TextView coordinateTitle = new TextView(this);
     coordinateTitle.setText("KOORDINAT TARGET · LIVE");
@@ -1066,6 +1107,7 @@ public class FloatingKeyboardService extends Service {
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
     addTouchGameButton(attackRow, "SERANG", 1f, "attack", false);
+    addCustomTriggerButtons(attackRow);
     LinearLayout.LayoutParams attackLp = new LinearLayout.LayoutParams(-1, dp(gameButtonHeight("attack", 46)));
     attackLp.setMargins(dp(4), dp(2), dp(4), dp(4));
     panel.addView(attackRow, attackLp);
@@ -1088,48 +1130,10 @@ public class FloatingKeyboardService extends Service {
     return label.trim();
   }
 
-  private void addCustomTriggerControls(LinearLayout panel) {
-    int count = getCustomTriggerCount();
-
-    // Keep trigger management at the top so it is easy to reach.
-    Button addTrigger = new Button(this);
-    addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
-    addTrigger.setAllCaps(false);
-    addTrigger.setTextSize(10);
-    styleButton(addTrigger, true);
-    addTrigger.setEnabled(count < 20);
-    addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
-    panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button manageTriggers = new Button(this);
-    manageTriggers.setText("KELOLA TRIGGER · GANTI NAMA / HAPUS");
-    manageTriggers.setAllCaps(false);
-    manageTriggers.setTextSize(9);
-    styleButton(manageTriggers, false);
-    manageTriggers.setOnClickListener(v -> showManageCustomTriggersDialog());
-    panel.addView(manageTriggers, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    if (count > 0) {
-      LinearLayout triggerList = new LinearLayout(this);
-      triggerList.setOrientation(LinearLayout.VERTICAL);
-      for (int start = 1; start <= count; start += 2) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER);
-        int end = Math.min(count, start + 1);
-        for (int index = start; index <= end; index++) {
-          addTouchGameButton(row, getCustomTriggerLabel(index), 1f, "custom_" + index, false);
-        }
-        int triggerRowHeight = 38;
-        for (int index = start; index <= end; index++) {
-          triggerRowHeight = Math.max(triggerRowHeight, gameButtonHeight("custom_" + index, 38));
-        }
-        triggerList.addView(row, new LinearLayout.LayoutParams(-1, dp(triggerRowHeight)));
-      }
-      android.widget.ScrollView triggerScroll = new android.widget.ScrollView(this);
-      triggerScroll.setFillViewport(false);
-      triggerScroll.setVerticalScrollBarEnabled(true);
-      triggerScroll.addView(triggerList);
-      panel.addView(triggerScroll, new LinearLayout.LayoutParams(-1, dp(88)));
+  private void addCustomTriggerButtons(LinearLayout row) {
+    int count = Math.min(3, getCustomTriggerCount());
+    for (int index = 1; index <= count; index++) {
+      addTouchGameButton(row, getCustomTriggerLabel(index), 0.65f, "custom_" + index, false);
     }
   }
 
