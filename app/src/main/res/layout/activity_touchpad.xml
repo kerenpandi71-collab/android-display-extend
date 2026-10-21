@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
+    android:background="#000000"
     android:orientation="vertical">
 
     <!-- Top bar -->
@@ -15,7 +16,8 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
-        android:paddingTop="8dp">
+        android:paddingTop="8dp"
+        android:background="#000000">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/switch_mode_button"
@@ -54,11 +56,12 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:padding="16dp"
-            android:background="@drawable/touchpad_background"
+            android:background="#000000"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/touchpad_gesture_hint"
+                android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
@@ -71,6 +74,7 @@
 
             <LinearLayout
                 android:id="@+id/touchpad_button_hints"
+                android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -112,7 +116,7 @@
             android:layout_width="18dp"
             android:layout_height="match_parent"
             android:layout_marginStart="6dp"
-            android:background="@drawable/scroll_track_background" />
+            android:background="#000000" />
     </LinearLayout>
 
     <!-- Bottom action buttons -->
