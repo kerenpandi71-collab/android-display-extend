@@ -118,11 +118,11 @@ public class State {
               new java.io.InputStreamReader(p.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null && sample.length() < 10000) {
-              sample.append(line).append('\\n');
+              sample.append(line).append('\n');
             }
           }
           appendPerformance("SYSTEM_SAMPLE elapsedMs=" + (android.os.SystemClock.elapsedRealtime() - start)
-              + " exit=" + p.exitValue() + "\\n" + sample);
+              + " exit=" + p.exitValue() + "\n" + sample);
         } catch (Throwable e) {
           appendPerformance("SYSTEM_SAMPLE error=" + e);
         }
@@ -171,9 +171,9 @@ public class State {
     synchronized (performanceLock) {
       if (performanceBuffer.length() > MAX_PERFORMANCE_LOG_CHARS) {
         performanceBuffer.delete(0, performanceBuffer.length() / 3);
-        performanceBuffer.insert(0, "[older samples trimmed to limit memory usage]\\n");
+        performanceBuffer.insert(0, "[older samples trimmed to limit memory usage]\n");
       }
-      performanceBuffer.append(line).append('\\n');
+      performanceBuffer.append(line).append('\n');
     }
   }
 
