@@ -631,15 +631,14 @@ public class FloatingKeyboardService extends Service {
       }
       return true;
     });
-    Button mode = new Button(this);
-    mode.setText("⌨");
-    mode.setAllCaps(false); mode.setTextSize(10); styleButton(mode, false);
-    mode.setOnClickListener(v -> {
+    // Keep portrait header clean: long-press the title to switch back to keyboard mode.
+    title.setContentDescription("Tekan lama untuk beralih ke mode keyboard");
+    title.setOnLongClickListener(v -> {
       gamepadMode = false;
       keyboardPrefs.edit().putBoolean("gamepad_mode", false).apply();
       rebuildKeyboard();
+      return true;
     });
-    titleRow.addView(mode, new LinearLayout.LayoutParams(dp(34), dp(32)));
     Button close = new Button(this);
     close.setText("×"); close.setAllCaps(false); styleButton(close, false);
     close.setOnClickListener(v -> stopSelf());
@@ -665,12 +664,17 @@ public class FloatingKeyboardService extends Service {
     addLandscapeGamepadRight(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+    addPortraitGamepadResizeHandles(panel);
 
     int type = Build.VERSION.SDK_INT >= 26
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
-    int panelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.68f)), screenWidth);
-    int compactHeight = Math.min(screenHeight - dp(24),
+    int defaultPanelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.68f)), screenWidth);
+    int defaultPanelHeight = Math.min(screenHeight - dp(24),
         Math.max(dp(300), Math.round(screenHeight * 0.68f)));
+    int panelWidth = Math.max(dp(180), Math.min(screenWidth,
+        keyboardPrefs.getInt("portrait_gamepad_width", defaultPanelWidth)));
+    int compactHeight = Math.max(dp(240), Math.min(screenHeight - dp(24),
+        keyboardPrefs.getInt("portrait_gamepad_height", defaultPanelHeight)));
     params = new WindowManager.LayoutParams(panelWidth, compactHeight,
         type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
@@ -691,6 +695,78 @@ public class FloatingKeyboardService extends Service {
    * Landscape mode uses two independent overlay windows so the virtual display
    * remains visible and touchable in the center between the keyboard and pad.
    */
+  private void addPortraitGamepadResizeHandles(LinearLayout panel) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    TextView widthGrip = new TextView(this);
+    widthGrip.setText("↔  Lebar");
+    widthGrip.setGravity(Gravity.CENTER);
+    widthGrip.setTextColor(Color.rgb(167, 202, 255));
+    widthGrip.setTextSize(10);
+    widthGrip.setBackground(createPanelBackground());
+    widthGrip.setPadding(dp(12), dp(4), dp(12), dp(4));
+    TextView heightGrip = new TextView(this);
+    heightGrip.setText("↕  Tinggi");
+    heightGrip.setGravity(Gravity.CENTER);
+    heightGrip.setTextColor(Color.rgb(167, 202, 255));
+    heightGrip.setTextSize(10);
+    heightGrip.setBackground(createPanelBackground());
+    heightGrip.setPadding(dp(12), dp(4), dp(12), dp(4));
+    LinearLayout.LayoutParams gripLp1 = new LinearLayout.LayoutParams(0, dp(30), 1f);
+    gripLp1.setMargins(dp(2), 0, dp(2), 0);
+    row.addView(widthGrip, gripLp1);
+    LinearLayout.LayoutParams gripLp2 = new LinearLayout.LayoutParams(0, dp(30), 1f);
+    gripLp2.setMargins(dp(2), 0, dp(2), 0);
+    row.addView(heightGrip, gripLp2);
+    panel.addView(row, new LinearLayout.LayoutParams(-1, dp(34)));
+
+    final float[] startX = new float[1];
+    final int[] startWidth = new int[1];
+    widthGrip.setOnTouchListener((v, event) -> {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          startX[0] = event.getRawX(); startWidth[0] = params.width; return true;
+        case MotionEvent.ACTION_MOVE: {
+          int delta = Math.round(startX[0] - event.getRawX());
+          int max = getResources().getDisplayMetrics().widthPixels;
+          params.width = Math.max(dp(180), Math.min(max, startWidth[0] + delta));
+          try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+          widthGrip.setText("↔  " + Math.round(params.width / getResources().getDisplayMetrics().density) + " dp");
+          return true;
+        }
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          keyboardPrefs.edit().putInt("portrait_gamepad_width", params.width).apply();
+          widthGrip.setText("↔  Lebar");
+          return true;
+      }
+      return true;
+    });
+
+    final float[] startY = new float[1];
+    final int[] startHeight = new int[1];
+    heightGrip.setOnTouchListener((v, event) -> {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          startY[0] = event.getRawY(); startHeight[0] = params.height; return true;
+        case MotionEvent.ACTION_MOVE: {
+          int delta = Math.round(event.getRawY() - startY[0]);
+          int max = getResources().getDisplayMetrics().heightPixels - dp(24);
+          params.height = Math.max(dp(240), Math.min(max, startHeight[0] + delta));
+          try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
+          heightGrip.setText("↕  " + Math.round(params.height / getResources().getDisplayMetrics().density) + " dp");
+          return true;
+        }
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          keyboardPrefs.edit().putInt("portrait_gamepad_height", params.height).apply();
+          heightGrip.setText("↕  Tinggi");
+          return true;
+      }
+      return true;
+    });
+  }
+
   private void showLandscapeKeyboard() {
     final float density = getResources().getDisplayMetrics().density;
     final int screenWidth = getResources().getDisplayMetrics().widthPixels;
