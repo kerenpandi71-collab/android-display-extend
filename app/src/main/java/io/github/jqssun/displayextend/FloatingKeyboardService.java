@@ -554,6 +554,17 @@ public class FloatingKeyboardService extends Service {
     scroll.setVerticalScrollBarEnabled(true);
     LinearLayout controls = new LinearLayout(this);
     controls.setOrientation(LinearLayout.VERTICAL);
+
+    TextView moveTitle = new TextView(this);
+    moveTitle.setText("ANALOG GERAK");
+    moveTitle.setTextColor(Color.rgb(174, 207, 245));
+    moveTitle.setTextSize(9);
+    moveTitle.setGravity(Gravity.CENTER);
+    controls.addView(moveTitle, new LinearLayout.LayoutParams(-1, dp(20)));
+    AnalogStickView movementStick = new AnalogStickView();
+    movementStick.setContentDescription("Analog gerak karakter");
+    controls.addView(movementStick, new LinearLayout.LayoutParams(-1, dp(112)));
+
     addLandscapeGamepadRight(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -561,7 +572,9 @@ public class FloatingKeyboardService extends Service {
     int type = Build.VERSION.SDK_INT >= 26
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
     int panelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.62f)), screenWidth);
-    params = new WindowManager.LayoutParams(panelWidth, Math.max(dp(240), screenHeight - dp(12)),
+    int compactHeight = Math.min(screenHeight - dp(24),
+        Math.max(dp(300), Math.round(screenHeight * 0.68f)));
+    params = new WindowManager.LayoutParams(panelWidth, compactHeight,
         type, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
     params.gravity = Gravity.TOP | Gravity.RIGHT;
