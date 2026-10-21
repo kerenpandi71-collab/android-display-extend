@@ -1165,9 +1165,8 @@ public class FloatingKeyboardService extends Service {
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    int skillRowHeight = Math.max(gameButtonHeight("skill1", 76),
-        Math.max(gameButtonHeight("skill2", 76), gameButtonHeight("skill3", 76)));
-    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(skillRowHeight)));
+    // Fixed 100dp row keeps all three skill aim controls large and uniform.
+    panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(100)));
 
     LinearLayout attackRow = new LinearLayout(this);
     attackRow.setGravity(Gravity.CENTER);
@@ -1508,12 +1507,10 @@ public class FloatingKeyboardService extends Service {
 
   private void addSkillAimStick(LinearLayout row, String label, String role) {
     SkillAimStickView stick = new SkillAimStickView(label, role);
-    int customWidth = keyboardPrefs.getInt("game_btn_w_" + role, 0);
-    int customHeight = keyboardPrefs.getInt("game_btn_h_" + role, 0);
+    // Lock Skill 1/2/3 aiming controls to a consistent, larger touch area.
+    // The general Resize dialog must not shrink these controls or their row.
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-        customWidth > 0 ? dp(customWidth) : 0,
-        dp(customHeight > 0 ? customHeight : 76),
-        customWidth > 0 ? 0f : 1f);
+        0, dp(100), 1f);
     lp.setMargins(dp(3), dp(2), dp(3), dp(2));
     row.addView(stick, lp);
     stick.setTranslationX(dp(Math.round(keyboardPrefs.getFloat("game_ui_x_" + role, 0f))));
@@ -1577,7 +1574,9 @@ public class FloatingKeyboardService extends Service {
       if (!active) { knobX = cx; knobY = cy; }
       // Native-MLBB-inspired control: compact round skill button, dark inset,
       // metallic rim and a clear label. The whole cell remains touch-sensitive.
-      float buttonRadius = Math.min(dp(29), Math.max(dp(20), Math.min(getWidth() * 0.34f, getHeight() * 0.40f)));
+      // Larger locked skill face: 72dp diameter while preserving a generous
+      // surrounding touch-sensitive area for smooth aiming gestures.
+      float buttonRadius = Math.min(dp(36), Math.max(dp(28), Math.min(getWidth() * 0.38f, getHeight() * 0.42f)));
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(Color.rgb(13, 20, 31));
       canvas.drawCircle(cx, cy, buttonRadius + dp(3), paint);
