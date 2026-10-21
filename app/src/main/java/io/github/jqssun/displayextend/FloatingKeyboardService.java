@@ -767,6 +767,80 @@ public class FloatingKeyboardService extends Service {
     });
   }
 
+  private void addLandscapeGamepadResizeHandles(LinearLayout panel) {
+    LinearLayout row = new LinearLayout(this);
+    row.setGravity(Gravity.CENTER);
+    TextView widthGrip = new TextView(this);
+    widthGrip.setText("↔  Lebar kiri/kanan");
+    widthGrip.setGravity(Gravity.CENTER);
+    widthGrip.setTextColor(Color.rgb(167, 202, 255));
+    widthGrip.setTextSize(9);
+    widthGrip.setBackground(createPanelBackground());
+    widthGrip.setPadding(dp(5), dp(2), dp(5), dp(2));
+    TextView heightGrip = new TextView(this);
+    heightGrip.setText("↕  Tinggi bawah");
+    heightGrip.setGravity(Gravity.CENTER);
+    heightGrip.setTextColor(Color.rgb(167, 202, 255));
+    heightGrip.setTextSize(9);
+    heightGrip.setBackground(createPanelBackground());
+    heightGrip.setPadding(dp(5), dp(2), dp(5), dp(2));
+    LinearLayout.LayoutParams lp1 = new LinearLayout.LayoutParams(0, dp(28), 1f);
+    lp1.setMargins(dp(2), 0, dp(2), 0);
+    row.addView(widthGrip, lp1);
+    LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(0, dp(28), 1f);
+    lp2.setMargins(dp(2), 0, dp(2), 0);
+    row.addView(heightGrip, lp2);
+    panel.addView(row, new LinearLayout.LayoutParams(-1, dp(30)));
+
+    final float[] startX = new float[1];
+    final int[] startWidth = new int[1];
+    widthGrip.setOnTouchListener((v, event) -> {
+      if (landscapeTrackpadParams == null || landscapeTrackpadView == null) return false;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          startX[0] = event.getRawX(); startWidth[0] = landscapeTrackpadParams.width; return true;
+        case MotionEvent.ACTION_MOVE: {
+          int delta = Math.round(startX[0] - event.getRawX());
+          int max = Math.max(dp(220), getResources().getDisplayMetrics().widthPixels - dp(160));
+          landscapeTrackpadParams.width = Math.max(dp(190), Math.min(max, startWidth[0] + delta));
+          try { windowManager.updateViewLayout(landscapeTrackpadView, landscapeTrackpadParams); } catch (Exception ignored) {}
+          widthGrip.setText("↔  " + Math.round(landscapeTrackpadParams.width / getResources().getDisplayMetrics().density) + " dp");
+          return true;
+        }
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          keyboardPrefs.edit().putInt("landscape_gamepad_width", landscapeTrackpadParams.width).apply();
+          widthGrip.setText("↔  Lebar kiri/kanan");
+          return true;
+      }
+      return true;
+    });
+
+    final float[] startY = new float[1];
+    final int[] startHeight = new int[1];
+    heightGrip.setOnTouchListener((v, event) -> {
+      if (landscapeTrackpadParams == null || landscapeTrackpadView == null) return false;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          startY[0] = event.getRawY(); startHeight[0] = landscapeTrackpadParams.height; return true;
+        case MotionEvent.ACTION_MOVE: {
+          int delta = Math.round(event.getRawY() - startY[0]);
+          int max = getResources().getDisplayMetrics().heightPixels - dp(24);
+          landscapeTrackpadParams.height = Math.max(dp(180), Math.min(max, startHeight[0] + delta));
+          try { windowManager.updateViewLayout(landscapeTrackpadView, landscapeTrackpadParams); } catch (Exception ignored) {}
+          heightGrip.setText("↕  " + Math.round(landscapeTrackpadParams.height / getResources().getDisplayMetrics().density) + " dp");
+          return true;
+        }
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          keyboardPrefs.edit().putInt("landscape_gamepad_height", landscapeTrackpadParams.height).apply();
+          heightGrip.setText("↕  Tinggi bawah");
+          return true;
+      }
+      return true;
+    });
+  }
+
   private void showLandscapeKeyboard() {
     final float density = getResources().getDisplayMetrics().density;
     final int screenWidth = getResources().getDisplayMetrics().widthPixels;
@@ -919,13 +993,20 @@ public class FloatingKeyboardService extends Service {
       View gamepadSpacer = new View(this);
       right.addView(gamepadSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
       addLandscapeGamepadRight(right);
+      addLandscapeGamepadResizeHandles(right);
     } else {
       addIntegratedTrackpad(right);
     }
     landscapeTrackpadView = right;
+    int defaultRightWidth = Math.max(dp(190), Math.round(screenWidth * 0.30f));
+    int defaultRightHeight = Math.max(dp(180), screenHeight - dp(88));
     landscapeTrackpadParams = new WindowManager.LayoutParams(
-        Math.max(dp(190), Math.round(screenWidth * 0.30f)),
-        Math.max(dp(180), screenHeight - dp(88)),
+        gamepadMode
+            ? Math.max(dp(190), Math.min(screenWidth, keyboardPrefs.getInt("landscape_gamepad_width", defaultRightWidth)))
+            : defaultRightWidth,
+        gamepadMode
+            ? Math.max(dp(180), Math.min(screenHeight - dp(24), keyboardPrefs.getInt("landscape_gamepad_height", defaultRightHeight)))
+            : defaultRightHeight,
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
