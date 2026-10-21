@@ -1089,6 +1089,25 @@ public class FloatingKeyboardService extends Service {
 
   private void addCustomTriggerControls(LinearLayout panel) {
     int count = getCustomTriggerCount();
+
+    // Keep trigger management at the top so it is easy to reach.
+    Button addTrigger = new Button(this);
+    addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
+    addTrigger.setAllCaps(false);
+    addTrigger.setTextSize(10);
+    styleButton(addTrigger, true);
+    addTrigger.setEnabled(count < 20);
+    addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
+    panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
+
+    Button manageTriggers = new Button(this);
+    manageTriggers.setText("KELOLA TRIGGER · GANTI NAMA / HAPUS");
+    manageTriggers.setAllCaps(false);
+    manageTriggers.setTextSize(9);
+    styleButton(manageTriggers, false);
+    manageTriggers.setOnClickListener(v -> showManageCustomTriggersDialog());
+    panel.addView(manageTriggers, new LinearLayout.LayoutParams(-1, dp(32)));
+
     if (count > 0) {
       LinearLayout triggerList = new LinearLayout(this);
       triggerList.setOrientation(LinearLayout.VERTICAL);
@@ -1111,20 +1130,6 @@ public class FloatingKeyboardService extends Service {
       triggerScroll.addView(triggerList);
       panel.addView(triggerScroll, new LinearLayout.LayoutParams(-1, dp(88)));
     }
-    Button addTrigger = new Button(this);
-    addTrigger.setText(count >= 20 ? "BATAS 20 TRIGGER TERCAPAI" : "+ TAMBAH TRIGGER");
-    addTrigger.setAllCaps(false);
-    addTrigger.setTextSize(10);
-    styleButton(addTrigger, true);
-    addTrigger.setEnabled(count < 20);
-    addTrigger.setOnClickListener(v -> showAddCustomTriggerDialog());
-    panel.addView(addTrigger, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button manageTriggers = new Button(this);
-    manageTriggers.setText("KELOLA TRIGGER · GANTI NAMA / HAPUS");
-    manageTriggers.setAllCaps(false); manageTriggers.setTextSize(9); styleButton(manageTriggers, false);
-    manageTriggers.setOnClickListener(v -> showManageCustomTriggersDialog());
-    panel.addView(manageTriggers, new LinearLayout.LayoutParams(-1, dp(32)));
   }
 
   private void showAddCustomTriggerDialog() {
