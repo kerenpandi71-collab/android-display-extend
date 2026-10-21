@@ -75,53 +75,20 @@ public class OverlayDisplayActivity extends Activity {
       createOverlay();
     });
 
-    TextView renderTitle = new TextView(this);
-    renderTitle.setText("Preset rendering virtual display");
-    renderTitle.setTextSize(16);
-    addGap(root, 12);
-    root.addView(renderTitle);
-    TextView renderHint = new TextView(this);
-    renderHint.setText("Resolusi lebih rendah biasanya lebih ringan. Pilih sesuai kelancaran; preset ini mengatur resolusi/DPI, bukan memaksa FPS layar.");
-    renderHint.setTextSize(12);
-    root.addView(renderHint);
-    LinearLayout renderPresets = new LinearLayout(this);
-    renderPresets.setOrientation(LinearLayout.HORIZONTAL);
-    MaterialButton lightPreset = new MaterialButton(this);
-    lightPreset.setText("Ringan\n1280×720");
-    lightPreset.setTextSize(11);
-    renderPresets.addView(lightPreset, new LinearLayout.LayoutParams(0, -2, 1f));
-    MaterialButton balancedPreset = new MaterialButton(this);
-    balancedPreset.setText("Seimbang\n1600×900");
-    balancedPreset.setTextSize(11);
-    renderPresets.addView(balancedPreset, new LinearLayout.LayoutParams(0, -2, 1f));
-    MaterialButton sharpPreset = new MaterialButton(this);
-    sharpPreset.setText("Tajam\n1920×1080");
-    sharpPreset.setTextSize(11);
-    renderPresets.addView(sharpPreset, new LinearLayout.LayoutParams(0, -2, 1f));
-    root.addView(renderPresets);
-    lightPreset.setOnClickListener(v -> {
-      widthInput.setText("1280");
-      heightInput.setText("720");
-      dpiInput.setText("240");
-      createOverlay();
-    });
-    balancedPreset.setOnClickListener(v -> {
-      widthInput.setText("1600");
-      heightInput.setText("900");
-      dpiInput.setText("240");
-      createOverlay();
-    });
-    sharpPreset.setOnClickListener(v -> {
-      widthInput.setText("1920");
-      heightInput.setText("1080");
-      dpiInput.setText("240");
-      createOverlay();
-    });
-
     MaterialButton create = new MaterialButton(this);
     create.setText(R.string.overlay_create);
     root.addView(create);
     create.setOnClickListener(v -> createOverlay());
+
+    MaterialButton performanceLog = new MaterialButton(this);
+    performanceLog.setText("Rekam Log Performa Virtual Display");
+    addGap(root, 8);
+    root.addView(performanceLog);
+    TextView performanceHint = new TextView(this);
+    performanceHint.setText("Catat display, SurfaceFlinger, CPU, memori, dan frame timing untuk diagnosis. File disimpan ke Download.");
+    performanceHint.setTextSize(12);
+    root.addView(performanceHint);
+    performanceLog.setOnClickListener(v -> capturePerformanceLog(performanceLog));
 
     addGap(root, 20);
     TextView listTitle = new TextView(this);
@@ -142,6 +109,86 @@ public class OverlayDisplayActivity extends Activity {
     root.addView(delete);
     delete.setOnClickListener(v -> deleteSelected());
     loadOverlays();
+  }
+
+  private void capturePerformanceLog(MaterialButton button) {
+    button.setEnabled(false);
+    button.setText("Sedang merekam log...");
+    new Thread(() -> {
+      StringBuilder log = new StringBuilder();
+      log.append("Android Display Extend - Virtual Display Performance Log\\n");
+      log.append("Waktu: ").append(new java.util.Date()).append("\\n");
+      log.append("Package: ").append(getPackageName()).append("\\n");
+      log.append("Android: ").append(android.os.Build.VERSION.RELEASE)
+          .append(" (API ").append(android.os.Build.VERSION.SDK_INT).append(")\\n");
+      log.append("Device: ").append(android.os.Build.MANUFACTURER).append(" ")
+          .append(android.os.Build.MODEL).append("\\n");
+      log.append("Catatan: ambil log saat lag terjadi; beberapa statistik bergantung pada ROM/root.\\n\\n");
+      String[] commands = {
+          "echo '===== DISPLAY ====='; dumpsys display",
+          "echo '===== SURFACEFLINGER LAYERS ====='; dumpsys SurfaceFlinger --list",
+          "echo '===== SURFACEFLINGER LATENCY HELP ====='; dumpsys SurfaceFlinger --latency",
+          "echo '===== CPU INFO ====='; dumpsys cpuinfo",
+          "echo '===== MEMORY: EXTEND APP ====='; dumpsys meminfo " + getPackageName(),
+          "echo '===== GRAPHICS: EXTEND APP ====='; dumpsys gfxinfo " + getPackageName() + " framestats",
+          "echo '===== SYSTEM PROPERTIES ====='; getprop ro.hardware; getprop ro.build.version.release; getprop debug.hwui.renderer; getprop debug.angle.backend"
+      };
+      boolean rootOk = false;
+      Process process = null;
+      try {
+        String script = "for c in " + commands.length + "; do :; done; " +
+            "echo '===== ROOT CHECK ====='; id; " +
+            String.join("; ", commands);
+        process = new ProcessBuilder("su", "-c", script).redirectErrorStream(true).start();
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+            new java.io.InputStreamReader(process.getInputStream()))) {
+          String line;
+          while ((line = reader.readLine()) != null) {
+            if (log.length() < 1_500_000) log.append(line).append('\\n');
+          }
+        }
+        rootOk = process.waitFor(20, java.util.concurrent.TimeUnit.SECONDS);
+        if (!rootOk) {
+          process.destroyForcibly();
+          log.append("\\nERROR: pengambilan data melewati batas waktu 20 detik.\\n");
+        } else {
+          log.append("\\nExit code: ").append(process.exitValue()).append('\\n');
+        }
+      } catch (Throwable t) {
+        if (process != null) process.destroyForcibly();
+        log.append("\\nERROR root capture: ").append(t).append('\\n');
+      }
+
+      String filename = "DisplayExtend_Performance_" +
+          new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US)
+              .format(new java.util.Date()) + ".txt";
+      String message;
+      try {
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, filename);
+        values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain");
+        values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+        android.net.Uri uri = getContentResolver().insert(
+            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (uri == null) throw new java.io.IOException("MediaStore tidak mengembalikan URI");
+        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+          if (out == null) throw new java.io.IOException("Gagal membuka file Download");
+          out.write(log.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        android.content.ContentValues ready = new android.content.ContentValues();
+        ready.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
+        getContentResolver().update(uri, ready, null, null);
+        message = "Log disimpan: Download/" + filename;
+      } catch (Throwable t) {
+        message = "Gagal menyimpan log: " + t.getMessage();
+      }
+      final String result = message;
+      runOnUiThread(() -> {
+        button.setEnabled(true);
+        button.setText("Rekam Log Performa Virtual Display");
+        Toast.makeText(this, result, Toast.LENGTH_LONG).show();
+      });
+    }, "display-performance-log").start();
   }
 
   private EditText field(LinearLayout parent, int label, String value, int type) {
