@@ -1432,7 +1432,7 @@ public class FloatingKeyboardService extends Service {
               "Pemetaan Tombol · Mapping Visual", "Log Diagnosis", "Ukuran Tombol · Resize",
               "Trigger · Tambah / Kelola", "Reset Posisi Tombol ke Default", "Atur Posisi Tombol",
               "Nama 9 Kotak", "Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF"),
-              "Mode Edit Overlay Gamepad 2: " + (keyboardPrefs.getBoolean("gp2_edit_mode", false) ? "AKTIF" : "NONAKTIF")},
+              "Mode Edit Overlay Gamepad " + getGamepadProfile() + ": " + (keyboardPrefs.getBoolean(getGamepadProfile() == 1 ? "gp1_edit_mode" : "gp2_edit_mode", false) ? "AKTIF" : "NONAKTIF")},
               (dialog, which) -> {
                 if (which == 0) { showGamepadProfilePicker(); return; }
                 switch (which) {
@@ -1465,11 +1465,12 @@ public class FloatingKeyboardService extends Service {
                     break;
                   }
                   case 9: {
-                    boolean enabled = !keyboardPrefs.getBoolean("gp2_edit_mode", false);
-                    keyboardPrefs.edit().putBoolean("gp2_edit_mode", enabled).apply();
+                    String editKey = getGamepadProfile() == 1 ? "gp1_edit_mode" : "gp2_edit_mode";
+                    boolean enabled = !keyboardPrefs.getBoolean(editKey, false);
+                    keyboardPrefs.edit().putBoolean(editKey, enabled).apply();
                     Toast.makeText(this, enabled
-                        ? "Edit Gamepad 2 aktif: tahan dan seret tombol. Posisi tersimpan otomatis."
-                        : "Edit Gamepad 2 nonaktif: tombol siap digunakan.", Toast.LENGTH_LONG).show();
+                        ? "Edit Gamepad " + getGamepadProfile() + " aktif: tahan dan seret tombol. Posisi tersimpan otomatis."
+                        : "Edit Gamepad " + getGamepadProfile() + " nonaktif: tombol siap digunakan.", Toast.LENGTH_LONG).show();
                     recordGamepadDiagnostic("GP2_EDIT_MODE", "enabled=" + enabled);
                     rebuildKeyboard();
                     break;
@@ -1484,8 +1485,8 @@ public class FloatingKeyboardService extends Service {
     gamepadCoordinateIndicator = null;
 
     int profile = getGamepadProfile();
-    if (profile == 2) {
-      addFreePositionGamepad2(panel);
+    if (profile == 1 || profile == 2) {
+      addFreePositionGamepadOverlay(panel, profile);
       return;
     }
     if (profile == 3) {
@@ -1545,8 +1546,10 @@ public class FloatingKeyboardService extends Service {
    * Gamepad 2 uses a single canvas with independent child controls. Each control
    * stores its own normalized X/Y, so moving one never shifts neighboring buttons.
    */
-  private void addFreePositionGamepad2(LinearLayout panel) {
-    final boolean editMode = keyboardPrefs.getBoolean("gp2_edit_mode", false);
+  private void addFreePositionGamepadOverlay(LinearLayout panel, int profile) {
+    final String positionPrefix = profile == 1 ? "gp1_" : "gp2_";
+    final String editModeKey = profile == 1 ? "gp1_edit_mode" : "gp2_edit_mode";
+    final boolean editMode = keyboardPrefs.getBoolean(editModeKey, false);
     android.widget.FrameLayout canvas = new android.widget.FrameLayout(this);
     canvas.setClipChildren(false);
     canvas.setClipToPadding(false);
@@ -1597,8 +1600,8 @@ public class FloatingKeyboardService extends Service {
       w = Math.max(dp(38), Math.min(w, dp(400)));
       h = Math.max(dp(32), Math.min(h, dp(400)));
       android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(w, h);
-      float nx = keyboardPrefs.getFloat("gp2_x_" + role, defaultFreeGamepadX(i, roles.size()));
-      float ny = keyboardPrefs.getFloat("gp2_y_" + role, defaultFreeGamepadY(i, roles.size()));
+      float nx = keyboardPrefs.getFloat(positionPrefix + "x_" + role, defaultFreeGamepadX(i, roles.size()));
+      float ny = keyboardPrefs.getFloat(positionPrefix + "y_" + role, defaultFreeGamepadY(i, roles.size()));
       lp.leftMargin = Math.max(0, Math.min(Math.max(0, dp(canvasHeight == 0 ? 0 : 280)), 0));
       control.setTag("gp2:" + role);
       canvas.addView(control, lp);
@@ -1616,7 +1619,7 @@ public class FloatingKeyboardService extends Service {
       final int[] origin = new int[2];
       final boolean[] dragging = new boolean[1];
       buttonView.setOnTouchListener((v, event) -> {
-        if (keyboardPrefs.getBoolean("gp2_edit_mode", false)) {
+        if (keyboardPrefs.getBoolean(editModeKey, false)) {
           switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
               dragging[0] = true;
@@ -1644,8 +1647,8 @@ public class FloatingKeyboardService extends Service {
               int maxX = Math.max(1, canvas.getWidth() - v.getWidth());
               int maxY = Math.max(1, canvas.getHeight() - v.getHeight());
               keyboardPrefs.edit()
-                  .putFloat("gp2_x_" + role, p.leftMargin / (float) maxX)
-                  .putFloat("gp2_y_" + role, p.topMargin / (float) maxY).apply();
+                  .putFloat(positionPrefix + "x_" + role, p.leftMargin / (float) maxX)
+                  .putFloat(positionPrefix + "y_" + role, p.topMargin / (float) maxY).apply();
               recordGamepadDiagnostic("GP2_POSITION_SAVED", "role=" + role + ", x=" + p.leftMargin + ", y=" + p.topMargin);
               dragging[0] = false;
               Toast.makeText(FloatingKeyboardService.this, label + " disimpan", Toast.LENGTH_SHORT).show();
@@ -1677,7 +1680,7 @@ public class FloatingKeyboardService extends Service {
     }
     TextView note = new TextView(this);
     note.setText(editMode ? "MODE EDIT AKTIF · tahan tombol lalu geser · posisi otomatis tersimpan" :
-        "Gamepad 2 · tombol bebas posisi");
+        "Gamepad " + profile + " · tombol bebas posisi");
     note.setTextColor(Color.rgb(145, 160, 178));
     note.setTextSize(9);
     note.setGravity(Gravity.CENTER);
