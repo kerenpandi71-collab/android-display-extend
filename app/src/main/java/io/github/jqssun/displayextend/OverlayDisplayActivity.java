@@ -46,6 +46,35 @@ public class OverlayDisplayActivity extends Activity {
     heightInput = field(root, R.string.height_label, "1080", InputType.TYPE_CLASS_NUMBER);
     dpiInput = field(root, R.string.dpi_label_short, "240", InputType.TYPE_CLASS_NUMBER);
 
+    TextView presetsTitle = new TextView(this);
+    presetsTitle.setText("Preset resolusi");
+    presetsTitle.setTextSize(16);
+    addGap(root, 10);
+    root.addView(presetsTitle);
+    LinearLayout presets = new LinearLayout(this);
+    presets.setOrientation(LinearLayout.HORIZONTAL);
+    MaterialButton preset800 = new MaterialButton(this);
+    preset800.setText("800×800 · 240 DPI");
+    preset800.setTextSize(12);
+    presets.addView(preset800, new LinearLayout.LayoutParams(0, -2, 1f));
+    MaterialButton preset900 = new MaterialButton(this);
+    preset900.setText("900×900 · 240 DPI");
+    preset900.setTextSize(12);
+    presets.addView(preset900, new LinearLayout.LayoutParams(0, -2, 1f));
+    root.addView(presets);
+    preset800.setOnClickListener(v -> {
+      widthInput.setText("800");
+      heightInput.setText("800");
+      dpiInput.setText("240");
+      createOverlay();
+    });
+    preset900.setOnClickListener(v -> {
+      widthInput.setText("900");
+      heightInput.setText("900");
+      dpiInput.setText("240");
+      createOverlay();
+    });
+
     MaterialButton create = new MaterialButton(this);
     create.setText(R.string.overlay_create);
     root.addView(create);
