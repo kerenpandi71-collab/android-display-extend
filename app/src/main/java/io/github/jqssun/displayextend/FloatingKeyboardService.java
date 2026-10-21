@@ -674,6 +674,9 @@ public class FloatingKeyboardService extends Service {
     titleRow.addView(close, new LinearLayout.LayoutParams(dp(34), dp(32)));
     panel.addView(titleRow);
 
+    // Keep resize grips fixed under the header so they remain reachable even when
+    // the panel is resized close to the screen edges.
+    addPortraitGamepadResizeHandles(panel);
     android.widget.ScrollView scroll = new android.widget.ScrollView(this);
     scroll.setFillViewport(false);
     scroll.setVerticalScrollBarEnabled(true);
@@ -693,7 +696,6 @@ public class FloatingKeyboardService extends Service {
     if (settingsVisible) addPortraitGamepadSettings(controls); else addLandscapeGamepadRight(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-    addPortraitGamepadResizeHandles(panel);
 
     int type = Build.VERSION.SDK_INT >= 26
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
@@ -753,6 +755,14 @@ public class FloatingKeyboardService extends Service {
      Button reset = new Button(this); reset.setText("Reset Posisi Tombol"); reset.setAllCaps(false); styleButton(reset, false); reset.setOnClickListener(v -> confirmResetGamepadButtonPositions()); panel.addView(reset, new LinearLayout.LayoutParams(-1, dp(38)));
      Button triggers = new Button(this); triggers.setText("Tambah / Kelola Trigger"); triggers.setAllCaps(false); styleButton(triggers, false); triggers.setOnClickListener(v -> new android.app.AlertDialog.Builder(this).setTitle("Trigger").setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> { if (action == 0) showAddCustomTriggerDialog(); else showManageCustomTriggersDialog(); }).show()); panel.addView(triggers, new LinearLayout.LayoutParams(-1, dp(38)));
      Button autoMap = new Button(this); autoMap.setText("Auto Map HUD"); autoMap.setAllCaps(false); styleButton(autoMap, false); autoMap.setOnClickListener(v -> showAutoMapMlbbDialog()); panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button slotNames = new Button(this); slotNames.setText("Nama 9 Kotak"); slotNames.setAllCaps(false); styleButton(slotNames, false); slotNames.setOnClickListener(v -> showGameSlotNameDialog()); panel.addView(slotNames, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button holdMove = new Button(this); holdMove.setText("Tahan untuk Pindahkan Tombol: " + (keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false) ? "AKTIF" : "NONAKTIF")); holdMove.setAllCaps(false); styleButton(holdMove, false);
+     holdMove.setOnClickListener(v -> { boolean enabled = !keyboardPrefs.getBoolean("gamepad_hold_reposition_enabled", false); keyboardPrefs.edit().putBoolean("gamepad_hold_reposition_enabled", enabled).apply(); holdMove.setText("Tahan untuk Pindahkan Tombol: " + (enabled ? "AKTIF" : "NONAKTIF")); Toast.makeText(this, enabled ? "Tahan tombol 550 ms lalu seret untuk memindahkan." : "Gunakan Atur Posisi Tombol untuk mengedit.", Toast.LENGTH_LONG).show(); recordGamepadDiagnostic("REPOSITION_HOLD_TOGGLE", "enabled=" + enabled); });
+     panel.addView(holdMove, new LinearLayout.LayoutParams(-1, dp(38)));
+     String editKey = getGamepadProfile() == 1 ? "gp1_edit_mode" : "gp2_edit_mode";
+     Button editOverlay = new Button(this); editOverlay.setText("Mode Edit Overlay Gamepad " + getGamepadProfile() + ": " + (keyboardPrefs.getBoolean(editKey, false) ? "AKTIF" : "NONAKTIF")); editOverlay.setAllCaps(false); styleButton(editOverlay, false);
+     editOverlay.setOnClickListener(v -> { boolean enabled = !keyboardPrefs.getBoolean(editKey, false); keyboardPrefs.edit().putBoolean(editKey, enabled).apply(); editOverlay.setText("Mode Edit Overlay Gamepad " + getGamepadProfile() + ": " + (enabled ? "AKTIF" : "NONAKTIF")); Toast.makeText(this, enabled ? "Edit aktif: tahan dan seret tombol." : "Edit nonaktif: tombol siap digunakan.", Toast.LENGTH_SHORT).show(); recordGamepadDiagnostic("GAMEPAD_EDIT_MODE", "profile=" + getGamepadProfile() + ", enabled=" + enabled); });
+     panel.addView(editOverlay, new LinearLayout.LayoutParams(-1, dp(38)));
     Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
   }
 
@@ -812,7 +822,7 @@ public class FloatingKeyboardService extends Service {
           startY[0] = event.getRawY(); startHeight[0] = params.height; return true;
         case MotionEvent.ACTION_MOVE: {
           int delta = Math.round(event.getRawY() - startY[0]);
-          int max = getResources().getDisplayMetrics().heightPixels - dp(24);
+          int max = Math.max(dp(180), getResources().getDisplayMetrics().heightPixels - dp(58));
           params.height = Math.max(dp(240), Math.min(max, startHeight[0] + delta));
           try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {}
           heightGrip.setText("↕  " + Math.round(params.height / getResources().getDisplayMetrics().density) + " dp");
@@ -862,7 +872,7 @@ public class FloatingKeyboardService extends Service {
           startX[0] = event.getRawX(); startWidth[0] = landscapeTrackpadParams.width; return true;
         case MotionEvent.ACTION_MOVE: {
           int delta = Math.round(startX[0] - event.getRawX());
-          int max = Math.max(dp(220), getResources().getDisplayMetrics().widthPixels - dp(160));
+          int max = Math.max(dp(190), getResources().getDisplayMetrics().widthPixels - dp(160));
           landscapeTrackpadParams.width = Math.max(dp(190), Math.min(max, startWidth[0] + delta));
           try { windowManager.updateViewLayout(landscapeTrackpadView, landscapeTrackpadParams); } catch (Exception ignored) {}
           widthGrip.setText("↔  " + Math.round(landscapeTrackpadParams.width / getResources().getDisplayMetrics().density) + " dp");
@@ -1130,13 +1140,13 @@ public class FloatingKeyboardService extends Service {
     }
     right.addView(header, new LinearLayout.LayoutParams(-1, dp(32)));
     if (gamepadMode) {
+      addLandscapeGamepadResizeHandles(right);
       View gamepadSpacer = new View(this);
       right.addView(gamepadSpacer, new LinearLayout.LayoutParams(-1, 0, 1f));
       addLandscapeGamepadRight(right);
-      addLandscapeGamepadResizeHandles(right);
     } else {
-      addIntegratedTrackpad(right);
       addLandscapeTrackpadResizeHandles(right);
+      addIntegratedTrackpad(right);
     }
     landscapeTrackpadView = right;
     int defaultRightWidth = Math.max(dp(190), Math.round(screenWidth * 0.30f));
@@ -1146,14 +1156,14 @@ public class FloatingKeyboardService extends Service {
             ? Math.max(dp(190), Math.min(screenWidth, keyboardPrefs.getInt("landscape_gamepad_width", defaultRightWidth)))
             : Math.max(dp(150), Math.min(screenWidth, keyboardPrefs.getInt("landscape_trackpad_width", defaultRightWidth))),
         gamepadMode
-            ? Math.max(dp(180), Math.min(screenHeight - dp(24), keyboardPrefs.getInt("landscape_gamepad_height", defaultRightHeight)))
-            : Math.max(dp(180), Math.min(screenHeight - dp(24), keyboardPrefs.getInt("landscape_trackpad_height", defaultRightHeight))),
+            ? Math.max(dp(180), Math.min(screenHeight - dp(58), keyboardPrefs.getInt("landscape_gamepad_height", defaultRightHeight)))
+            : Math.max(dp(180), Math.min(screenHeight - dp(58), keyboardPrefs.getInt("landscape_trackpad_height", defaultRightHeight))),
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
     landscapeTrackpadParams.gravity = Gravity.TOP | Gravity.RIGHT;
-    landscapeTrackpadParams.x = Math.max(0, keyboardPrefs.getInt("landscape_trackpad_x", dp(6)));
-    landscapeTrackpadParams.y = Math.max(0, keyboardPrefs.getInt("landscape_trackpad_y", dp(6)));
+    landscapeTrackpadParams.x = Math.max(0, Math.min(screenWidth - landscapeTrackpadParams.width, keyboardPrefs.getInt("landscape_trackpad_x", dp(6))));
+    landscapeTrackpadParams.y = Math.max(0, Math.min(screenHeight - landscapeTrackpadParams.height - dp(42), keyboardPrefs.getInt("landscape_trackpad_y", dp(6))));
 
     try {
       windowManager.addView(keyboardView, params);
