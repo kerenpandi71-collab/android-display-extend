@@ -51,6 +51,9 @@ public class FloatingKeyboardService extends Service {
 
   private WindowManager windowManager;
   private View keyboardView;
+  private View portraitMovementStickView;
+  private WindowManager.LayoutParams portraitMovementStickParams;
+  private android.app.AlertDialog portraitSettingsDialog;
   private View landscapeTrackpadView;
   private WindowManager.LayoutParams params;
   private WindowManager.LayoutParams landscapeTrackpadParams;
@@ -640,7 +643,7 @@ public class FloatingKeyboardService extends Service {
     Button portraitSettings = new Button(this);
     portraitSettings.setText("⚙"); portraitSettings.setAllCaps(false); portraitSettings.setTextSize(10); styleButton(portraitSettings, true);
     portraitSettings.setContentDescription("Pengaturan Gamepad portrait");
-    portraitSettings.setOnClickListener(v -> { settingsVisible = !settingsVisible; rebuildKeyboard(); });
+    portraitSettings.setOnClickListener(v -> showPortraitGamepadSettingsDialog());
     titleRow.addView(portraitSettings, new LinearLayout.LayoutParams(dp(34), dp(32)));
     title.setOnTouchListener((v, event) -> {
       if (params == null || keyboardView == null) return false;
@@ -683,17 +686,9 @@ public class FloatingKeyboardService extends Service {
     LinearLayout controls = new LinearLayout(this);
     controls.setOrientation(LinearLayout.VERTICAL);
 
-    TextView moveTitle = new TextView(this);
-    moveTitle.setText("ANALOG GERAK");
-    moveTitle.setTextColor(Color.rgb(174, 207, 245));
-    moveTitle.setTextSize(9);
-    moveTitle.setGravity(Gravity.CENTER);
-    controls.addView(moveTitle, new LinearLayout.LayoutParams(-1, dp(20)));
-    AnalogStickView movementStick = new AnalogStickView();
-    movementStick.setContentDescription("Analog gerak karakter");
-    controls.addView(movementStick, new LinearLayout.LayoutParams(-1, dp(126)));
-
-    if (settingsVisible) addPortraitGamepadSettings(controls); else addLandscapeGamepadRight(controls);
+    // Portrait movement stick is its own overlay at the bottom-left, independent
+    // from the right-side buttons panel so it stays in a familiar MOBA position.
+    addLandscapeGamepadRight(controls);
     scroll.addView(controls);
     panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
@@ -715,6 +710,7 @@ public class FloatingKeyboardService extends Service {
     keyboardView = panel;
     try {
       windowManager.addView(keyboardView, params);
+      showPortraitMovementStick();
     } catch (Exception e) {
       State.log("portrait gamepad overlay failed: " + e.getMessage());
       Toast.makeText(this, "Gamepad portrait gagal ditampilkan: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -726,6 +722,60 @@ public class FloatingKeyboardService extends Service {
    * Landscape mode uses two independent overlay windows so the virtual display
    * remains visible and touchable in the center between the keyboard and pad.
    */
+  private void showPortraitGamepadSettingsDialog() {
+    if (portraitSettingsDialog != null && portraitSettingsDialog.isShowing()) {
+      portraitSettingsDialog.dismiss();
+      return;
+    }
+    android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+    scroll.setFillViewport(false);
+    LinearLayout content = new LinearLayout(this);
+    content.setOrientation(LinearLayout.VERTICAL);
+    content.setPadding(dp(10), dp(6), dp(10), dp(8));
+    scroll.addView(content);
+    addPortraitGamepadSettings(content);
+    portraitSettingsDialog = new android.app.AlertDialog.Builder(this)
+        .setTitle("Pengaturan Gamepad Portrait")
+        .setView(scroll)
+        .setOnDismissListener(d -> portraitSettingsDialog = null)
+        .create();
+    showServiceOverlayDialog(portraitSettingsDialog);
+  }
+
+  private void showPortraitMovementStick() {
+    removePortraitMovementStick();
+    int type = Build.VERSION.SDK_INT >= 26
+        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        : WindowManager.LayoutParams.TYPE_PHONE;
+    int size = dp(Math.max(124, Math.min(164, keyboardPrefs.getInt("portrait_analog_size_dp", 146))));
+    AnalogStickView stick = new AnalogStickView();
+    stick.setContentDescription("Analog gerak karakter, kiri bawah");
+    stick.setBackground(createPanelBackground());
+    portraitMovementStickView = stick;
+    portraitMovementStickParams = new WindowManager.LayoutParams(
+        size, size, type,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        PixelFormat.TRANSLUCENT);
+    portraitMovementStickParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
+    portraitMovementStickParams.x = Math.max(dp(8), keyboardPrefs.getInt("portrait_analog_x", dp(18)));
+    portraitMovementStickParams.y = Math.max(dp(16), keyboardPrefs.getInt("portrait_analog_y", dp(34)));
+    try {
+      windowManager.addView(portraitMovementStickView, portraitMovementStickParams);
+    } catch (Exception e) {
+      State.log("portrait movement stick overlay failed: " + e.getMessage());
+      portraitMovementStickView = null;
+      portraitMovementStickParams = null;
+    }
+  }
+
+  private void removePortraitMovementStick() {
+    if (portraitMovementStickView != null && windowManager != null) {
+      try { windowManager.removeView(portraitMovementStickView); } catch (Exception ignored) {}
+    }
+    portraitMovementStickView = null;
+    portraitMovementStickParams = null;
+  }
+
   private void addPortraitGamepadSettings(LinearLayout panel) {
     TextView hint = new TextView(this);
     hint.setText("Pengaturan Gamepad Portrait — tersimpan terpisah dari Landscape.");
@@ -733,10 +783,10 @@ public class FloatingKeyboardService extends Service {
     hint.setPadding(dp(4), dp(4), dp(4), dp(6)); panel.addView(hint);
     LinearLayout modes = new LinearLayout(this); modes.setOrientation(LinearLayout.HORIZONTAL);
     Button keyboard = new Button(this); keyboard.setText("Kembali ke Keyboard"); keyboard.setAllCaps(false); keyboard.setTextSize(10); styleButton(keyboard, false);
-    keyboard.setOnClickListener(v -> { gamepadMode = false; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply(); settingsVisible = false; rebuildKeyboard(); });
+    keyboard.setOnClickListener(v -> { if (portraitSettingsDialog != null) portraitSettingsDialog.dismiss(); gamepadMode = false; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), false).apply(); settingsVisible = false; rebuildKeyboard(); });
     modes.addView(keyboard, new LinearLayout.LayoutParams(0, dp(40), 1f));
     Button gamepad = new Button(this); gamepad.setText("Mode Gamepad"); gamepad.setAllCaps(false); gamepad.setTextSize(10); styleButton(gamepad, true);
-    gamepad.setOnClickListener(v -> { gamepadMode = true; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), true).apply(); settingsVisible = false; rebuildKeyboard(); });
+    gamepad.setOnClickListener(v -> { if (portraitSettingsDialog != null) portraitSettingsDialog.dismiss(); gamepadMode = true; keyboardPrefs.edit().putBoolean(orientationPrefKey("gamepad_mode"), true).apply(); settingsVisible = false; rebuildKeyboard(); });
     modes.addView(gamepad, new LinearLayout.LayoutParams(0, dp(40), 1f)); panel.addView(modes);
     addSettingSlider(panel, "Lebar panel gamepad", Math.round(params != null ? params.width / getResources().getDisplayMetrics().density : 260), 180, Math.max(180, Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density)), value -> {
       if (params != null && keyboardView != null) { params.width = dp(value); keyboardPrefs.edit().putInt("portrait_gamepad_width", params.width).apply(); try { windowManager.updateViewLayout(keyboardView, params); } catch (Exception ignored) {} }
@@ -763,7 +813,7 @@ public class FloatingKeyboardService extends Service {
      Button editOverlay = new Button(this); editOverlay.setText("Mode Edit Overlay Gamepad " + getGamepadProfile() + ": " + (keyboardPrefs.getBoolean(editKey, false) ? "AKTIF" : "NONAKTIF")); editOverlay.setAllCaps(false); styleButton(editOverlay, false);
      editOverlay.setOnClickListener(v -> { boolean enabled = !keyboardPrefs.getBoolean(editKey, false); keyboardPrefs.edit().putBoolean(editKey, enabled).apply(); editOverlay.setText("Mode Edit Overlay Gamepad " + getGamepadProfile() + ": " + (enabled ? "AKTIF" : "NONAKTIF")); Toast.makeText(this, enabled ? "Edit aktif: tahan dan seret tombol." : "Edit nonaktif: tombol siap digunakan.", Toast.LENGTH_SHORT).show(); recordGamepadDiagnostic("GAMEPAD_EDIT_MODE", "profile=" + getGamepadProfile() + ", enabled=" + enabled); });
      panel.addView(editOverlay, new LinearLayout.LayoutParams(-1, dp(38)));
-    Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
+    Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; if (portraitSettingsDialog != null) portraitSettingsDialog.dismiss(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
   }
 
   private void addPortraitGamepadResizeHandles(LinearLayout panel) {
@@ -3181,6 +3231,8 @@ public class FloatingKeyboardService extends Service {
   }
 
   private void rebuildKeyboard() {
+    if (portraitSettingsDialog != null) { try { portraitSettingsDialog.dismiss(); } catch (Exception ignored) {} portraitSettingsDialog = null; }
+    removePortraitMovementStick();
     if (keyboardView != null) {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
@@ -4114,6 +4166,8 @@ public class FloatingKeyboardService extends Service {
   @Override
   public void onDestroy() {
     try { gameTouchController.releaseAll(); } catch (Throwable ignored) {}
+    if (portraitSettingsDialog != null) { try { portraitSettingsDialog.dismiss(); } catch (Exception ignored) {} portraitSettingsDialog = null; }
+    removePortraitMovementStick();
     if (keyboardView != null && windowManager != null) {
       try { windowManager.removeView(keyboardView); } catch (Exception ignored) {}
       keyboardView = null;
