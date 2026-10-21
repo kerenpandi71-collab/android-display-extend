@@ -2899,6 +2899,9 @@ public class FloatingKeyboardService extends Service {
         return true;
       }
       if (action == MotionEvent.ACTION_MOVE) {
+        final long cursorEventStartNs = android.os.SystemClock.elapsedRealtimeNanos();
+        final float cursorRawDx = e.getX() - lastFingerX;
+        final float cursorRawDy = e.getY() - lastFingerY;
         if (e.getPointerCount() >= 2) {
           twoFingerGesture = true;
           float dy = e.getY(0) - lastFingerY;
@@ -2950,6 +2953,9 @@ public class FloatingKeyboardService extends Service {
         // Match the working built-in trackpad: move its software cursor on the
         // target display instead of relying on injected mouse ACTION_MOVE events.
         updateIntegratedCursor();
+        State.recordCursorMovement(
+            targetDisplayId, cursorRawDx, cursorRawDy,
+            (android.os.SystemClock.elapsedRealtimeNanos() - cursorEventStartNs) / 1000L);
         return true;
       }
       if (action == MotionEvent.ACTION_UP) {
