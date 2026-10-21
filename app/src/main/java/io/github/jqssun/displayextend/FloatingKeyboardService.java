@@ -1148,8 +1148,8 @@ public class FloatingKeyboardService extends Service {
     addSkillAimStick(skillSticks, "S1", "skill1");
     addSkillAimStick(skillSticks, "S2", "skill2");
     addSkillAimStick(skillSticks, "S3", "skill3");
-    int skillRowHeight = Math.max(gameButtonHeight("skill1", 54),
-        Math.max(gameButtonHeight("skill2", 54), gameButtonHeight("skill3", 54)));
+    int skillRowHeight = Math.max(gameButtonHeight("skill1", 76),
+        Math.max(gameButtonHeight("skill2", 76), gameButtonHeight("skill3", 76)));
     panel.addView(skillSticks, new LinearLayout.LayoutParams(-1, dp(skillRowHeight)));
 
     LinearLayout attackRow = new LinearLayout(this);
@@ -1375,10 +1375,6 @@ public class FloatingKeyboardService extends Service {
         "Serang", "Skill 1", "Skill 2", "Skill 3", "Ultimate", "Spell / Flicker", "Upgrade", "Recall"));
     final java.util.ArrayList<String> rolesList = new java.util.ArrayList<>(java.util.Arrays.asList(
         "attack", "skill1", "skill2", "skill3", "ultimate", "spell", "upgrade", "recall"));
-    for (int i = 1; i <= 9; i++) {
-      labelsList.add(getGameSlotLabel(i));
-      rolesList.add("slot_" + i);
-    }
     for (int i = 1; i <= 9; i++) {
       labelsList.add(getGameSlotLabel(i));
       rolesList.add("slot_" + i);
