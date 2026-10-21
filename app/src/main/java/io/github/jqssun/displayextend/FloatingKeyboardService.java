@@ -613,7 +613,7 @@ public class FloatingKeyboardService extends Service {
     controls.addView(moveTitle, new LinearLayout.LayoutParams(-1, dp(20)));
     AnalogStickView movementStick = new AnalogStickView();
     movementStick.setContentDescription("Analog gerak karakter");
-    controls.addView(movementStick, new LinearLayout.LayoutParams(-1, dp(112)));
+    controls.addView(movementStick, new LinearLayout.LayoutParams(-1, dp(126)));
 
     addLandscapeGamepadRight(controls);
     scroll.addView(controls);
@@ -621,7 +621,7 @@ public class FloatingKeyboardService extends Service {
 
     int type = Build.VERSION.SDK_INT >= 26
         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
-    int panelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.62f)), screenWidth);
+    int panelWidth = Math.min(Math.max(dp(220), Math.round(screenWidth * 0.68f)), screenWidth);
     int compactHeight = Math.min(screenHeight - dp(24),
         Math.max(dp(300), Math.round(screenHeight * 0.68f)));
     params = new WindowManager.LayoutParams(panelWidth, compactHeight,
@@ -742,6 +742,39 @@ public class FloatingKeyboardService extends Service {
     trackpadTitle.setTextSize(12);
     trackpadTitle.setTypeface(null, android.graphics.Typeface.BOLD);
     trackpadTitle.setGravity(Gravity.CENTER_VERTICAL);
+    // Drag the title to reposition the landscape trackpad/gamepad overlay.
+    trackpadTitle.setOnTouchListener((v, event) -> {
+      if (landscapeTrackpadParams == null || landscapeTrackpadView == null) return false;
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_DOWN:
+          dragStartX = event.getRawX();
+          dragStartY = event.getRawY();
+          dragOriginX = landscapeTrackpadParams.x;
+          dragOriginY = landscapeTrackpadParams.y;
+          return true;
+        case MotionEvent.ACTION_MOVE:
+          int maxX = Math.max(0, getResources().getDisplayMetrics().widthPixels
+              - landscapeTrackpadView.getWidth());
+          int maxY = Math.max(0, getResources().getDisplayMetrics().heightPixels
+              - landscapeTrackpadView.getHeight());
+          landscapeTrackpadParams.x = Math.max(0, Math.min(maxX,
+              Math.round(dragOriginX - (event.getRawX() - dragStartX))));
+          landscapeTrackpadParams.y = Math.max(0, Math.min(maxY,
+              Math.round(dragOriginY + (event.getRawY() - dragStartY))));
+          try { windowManager.updateViewLayout(landscapeTrackpadView, landscapeTrackpadParams); }
+          catch (Exception ignored) {}
+          return true;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          keyboardPrefs.edit()
+              .putInt("landscape_trackpad_x", landscapeTrackpadParams.x)
+              .putInt("landscape_trackpad_y", landscapeTrackpadParams.y).apply();
+          Toast.makeText(FloatingKeyboardService.this, "Posisi trackpad disimpan.", Toast.LENGTH_SHORT).show();
+          return true;
+      }
+      return true;
+    });
+    trackpadTitle.setContentDescription("Tahan dan geser untuk memindahkan trackpad landscape");
     header.addView(trackpadTitle, new LinearLayout.LayoutParams(0, dp(32), 1f));
     if (gamepadMode) {
       Button settingsIcon = new Button(this);
@@ -768,14 +801,14 @@ public class FloatingKeyboardService extends Service {
     }
     landscapeTrackpadView = right;
     landscapeTrackpadParams = new WindowManager.LayoutParams(
-        Math.max(dp(170), Math.round(screenWidth * 0.25f)),
+        Math.max(dp(190), Math.round(screenWidth * 0.30f)),
         Math.min(screenHeight - dp(12), WindowManager.LayoutParams.MATCH_PARENT),
         type,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         PixelFormat.TRANSLUCENT);
     landscapeTrackpadParams.gravity = Gravity.TOP | Gravity.RIGHT;
-    landscapeTrackpadParams.x = dp(6);
-    landscapeTrackpadParams.y = dp(6);
+    landscapeTrackpadParams.x = Math.max(0, keyboardPrefs.getInt("landscape_trackpad_x", dp(6)));
+    landscapeTrackpadParams.y = Math.max(0, keyboardPrefs.getInt("landscape_trackpad_y", dp(6)));
 
     try {
       windowManager.addView(keyboardView, params);
@@ -1519,8 +1552,8 @@ public class FloatingKeyboardService extends Service {
     // Lock Skill 1/2/3 aiming controls to a consistent, larger touch area.
     // The general Resize dialog must not shrink these controls or their row.
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-        0, dp(100), 1f);
-    lp.setMargins(dp(3), dp(2), dp(3), dp(2));
+        0, dp(132), 1f);
+    lp.setMargins(dp(3), dp(4), dp(3), dp(4));
     row.addView(stick, lp);
     stick.setTranslationX(dp(Math.round(keyboardPrefs.getFloat("game_ui_x_" + role, 0f))));
     stick.setTranslationY(dp(Math.round(keyboardPrefs.getFloat("game_ui_y_" + role, 0f))));
@@ -1579,15 +1612,15 @@ public class FloatingKeyboardService extends Service {
       super.onDraw(canvas);
       cx = getWidth() / 2f;
       cy = getHeight() / 2f;
-      radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.39f);
+      radius = Math.max(dp(18), Math.min(getWidth(), getHeight()) * 0.43f);
       if (!active) { knobX = cx; knobY = cy; }
       // Native-MLBB-inspired control: compact round skill button, dark inset,
       // metallic rim and a clear label. The whole cell remains touch-sensitive.
-      // Larger locked skill face: 72dp diameter while preserving a generous
-      // surrounding touch-sensitive area for smooth aiming gestures.
-      int savedDiameter = keyboardPrefs.getInt("game_skill_circle_" + role, 88);
+      // Larger skill face, bounded by this cell so it remains circular and is not clipped.
+      // The saved 32..400dp value remains user-adjustable; actual rendering follows available space.
+      int savedDiameter = keyboardPrefs.getInt("game_skill_circle_" + role, 96);
       float buttonRadius = Math.max(dp(20),
-          Math.min(dp(savedDiameter) / 2f, Math.min(getWidth() * 0.48f, getHeight() * 0.48f)));
+          Math.min(dp(savedDiameter) / 2f, Math.min(getWidth() * 0.70f, getHeight() * 0.68f)));
       paint.setStyle(android.graphics.Paint.Style.FILL);
       paint.setColor(Color.rgb(13, 20, 31));
       canvas.drawCircle(cx, cy, buttonRadius + dp(3), paint);
