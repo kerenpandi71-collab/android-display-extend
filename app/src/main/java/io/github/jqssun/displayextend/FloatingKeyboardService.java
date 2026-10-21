@@ -865,14 +865,14 @@ public class FloatingKeyboardService extends Service {
     LinearLayout row = new LinearLayout(this);
     row.setGravity(Gravity.CENTER);
     TextView widthGrip = new TextView(this);
-    widthGrip.setText("↔  Lebar trackpad");
+    widthGrip.setText("↔  Ubah lebar");
     widthGrip.setGravity(Gravity.CENTER);
     widthGrip.setTextColor(Color.rgb(167, 202, 255));
     widthGrip.setTextSize(9);
     widthGrip.setBackground(createPanelBackground());
     widthGrip.setPadding(dp(4), dp(2), dp(4), dp(2));
     TextView heightGrip = new TextView(this);
-    heightGrip.setText("↕  Tinggi trackpad");
+    heightGrip.setText("↕  Ubah tinggi");
     heightGrip.setGravity(Gravity.CENTER);
     heightGrip.setTextColor(Color.rgb(167, 202, 255));
     heightGrip.setTextSize(9);
@@ -906,7 +906,7 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_UP:
         case MotionEvent.ACTION_CANCEL:
           keyboardPrefs.edit().putInt("landscape_trackpad_width", landscapeTrackpadParams.width).apply();
-          widthGrip.setText("↔  Lebar trackpad");
+          widthGrip.setText("↔  Ubah lebar");
           return true;
       }
       return true;
@@ -932,7 +932,7 @@ public class FloatingKeyboardService extends Service {
         case MotionEvent.ACTION_UP:
         case MotionEvent.ACTION_CANCEL:
           keyboardPrefs.edit().putInt("landscape_trackpad_height", landscapeTrackpadParams.height).apply();
-          heightGrip.setText("↕  Tinggi trackpad");
+          heightGrip.setText("↕  Ubah tinggi");
           return true;
       }
       return true;
@@ -1613,9 +1613,9 @@ public class FloatingKeyboardService extends Service {
       int heightDp = keyboardPrefs.getInt("game_btn_h_" + role, 0);
       int defaultWidth = ("attack".equals(role) ? 76 : ("ultimate".equals(role) || "spell".equals(role) ? 58 : 52));
       if (role.startsWith("slot_") || role.startsWith("custom_")) defaultWidth = 50;
-      if (role.startsWith("skill")) defaultWidth = keyboardPrefs.getInt("game_skill_circle_" + role, 96);
+      if (role.startsWith("skill") || "spell".equals(role)) defaultWidth = keyboardPrefs.getInt("game_skill_circle_" + role, 96);
       int w = dp(widthDp > 0 ? widthDp : defaultWidth);
-      int h = dp(heightDp > 0 ? heightDp : (role.startsWith("skill") ? Math.max(70, defaultWidth) : 48));
+      int h = dp(heightDp > 0 ? heightDp : ((role.startsWith("skill") || "spell".equals(role)) ? Math.max(70, defaultWidth) : 48));
       w = Math.max(dp(38), Math.min(w, dp(400)));
       h = Math.max(dp(32), Math.min(h, dp(400)));
       android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(w, h);
