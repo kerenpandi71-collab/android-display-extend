@@ -985,12 +985,6 @@ public class FloatingKeyboardService extends Service {
 
   private void addLandscapeGamepadRight(LinearLayout panel) {
     // Keep mapping and diagnostics at the top so they remain reachable on short screens.
-    Button customize = new Button(this);
-    customize.setText("ATUR POSISI / MAPPING");
-    customize.setAllCaps(false); customize.setTextSize(10); styleButton(customize, true);
-    customize.setOnClickListener(v -> showGamepadCustomization());
-    panel.addView(customize, new LinearLayout.LayoutParams(-1, dp(34)));
-
     visualMappingButton = new Button(this);
     visualMappingButton.setText("MAPPING VISUAL · GESER PENANDA");
     visualMappingButton.setAllCaps(false); visualMappingButton.setTextSize(10); styleButton(visualMappingButton, true);
@@ -999,12 +993,6 @@ public class FloatingKeyboardService extends Service {
       else showVisualMappingPicker();
     });
     panel.addView(visualMappingButton, new LinearLayout.LayoutParams(-1, dp(32)));
-
-    Button autoMap = new Button(this);
-    autoMap.setText("AUTO MAP HUD · MOBILE LEGENDS");
-    autoMap.setAllCaps(false); autoMap.setTextSize(10); styleButton(autoMap, true);
-    autoMap.setOnClickListener(v -> showAutoMapMlbbDialog());
-    panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(32)));
 
     Button diagnostics = new Button(this);
     diagnostics.setText("LOG DIAGNOSIS · SALIN / BAGIKAN");
