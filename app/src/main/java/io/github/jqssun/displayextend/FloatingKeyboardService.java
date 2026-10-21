@@ -747,6 +747,10 @@ public class FloatingKeyboardService extends Service {
     addSettingSlider(panel, "Posisi keyboard dari atas", verticalOffsetDp, 0, 600, value -> { verticalOffsetDp = value; keyboardPrefs.edit().putInt(orientationPrefKey("vertical_offset_dp"), value).apply(); }, " dp");
     Button mapHud = new Button(this); mapHud.setText("Pemetaan Tombol / Target HUD"); mapHud.setAllCaps(false); styleButton(mapHud, false); mapHud.setOnClickListener(v -> showVisualMappingPicker()); panel.addView(mapHud, new LinearLayout.LayoutParams(-1, dp(38)));
      Button sizes = new Button(this); sizes.setText("Ukuran Tombol / Resize"); sizes.setAllCaps(false); styleButton(sizes, false); sizes.setOnClickListener(v -> showControlSizeDialog()); panel.addView(sizes, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button profile = new Button(this); profile.setText("Profil Gamepad kanan"); profile.setAllCaps(false); styleButton(profile, false); profile.setOnClickListener(v -> showGamepadProfilePicker()); panel.addView(profile, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button diagnostics = new Button(this); diagnostics.setText("Log Diagnosis"); diagnostics.setAllCaps(false); styleButton(diagnostics, false); diagnostics.setOnClickListener(v -> showGamepadDiagnostics()); panel.addView(diagnostics, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button editPositions = new Button(this); editPositions.setText("Atur Posisi Tombol"); editPositions.setAllCaps(false); styleButton(editPositions, false); editPositions.setOnClickListener(v -> showGamepadLayoutEditor()); panel.addView(editPositions, new LinearLayout.LayoutParams(-1, dp(38)));
+     Button reset = new Button(this); reset.setText("Reset Posisi Tombol"); reset.setAllCaps(false); styleButton(reset, false); reset.setOnClickListener(v -> confirmResetGamepadButtonPositions()); panel.addView(reset, new LinearLayout.LayoutParams(-1, dp(38)));
      Button triggers = new Button(this); triggers.setText("Tambah / Kelola Trigger"); triggers.setAllCaps(false); styleButton(triggers, false); triggers.setOnClickListener(v -> new android.app.AlertDialog.Builder(this).setTitle("Trigger").setItems(new String[] {"Tambah trigger baru", "Kelola trigger"}, (d, action) -> { if (action == 0) showAddCustomTriggerDialog(); else showManageCustomTriggersDialog(); }).show()); panel.addView(triggers, new LinearLayout.LayoutParams(-1, dp(38)));
      Button autoMap = new Button(this); autoMap.setText("Auto Map HUD"); autoMap.setAllCaps(false); styleButton(autoMap, false); autoMap.setOnClickListener(v -> showAutoMapMlbbDialog()); panel.addView(autoMap, new LinearLayout.LayoutParams(-1, dp(38)));
     Button done = new Button(this); done.setText("Selesai"); done.setAllCaps(false); styleButton(done, true); done.setOnClickListener(v -> { settingsVisible = false; rebuildKeyboard(); }); panel.addView(done, new LinearLayout.LayoutParams(-1, dp(38)));
@@ -2825,9 +2829,9 @@ public class FloatingKeyboardService extends Service {
       switch (role) {
         case "move": return 0;
         case "attack": return 1;
-        case "target_hero": return 18;
-        case "target_minion": return 19;
-        case "target_monster": return 20;
+        case "target_hero": return 29;
+        case "target_minion": return 30;
+        case "target_monster": return 31;
         case "skill1": return 2;
         case "skill2": return 3;
         case "skill3": return 4;
