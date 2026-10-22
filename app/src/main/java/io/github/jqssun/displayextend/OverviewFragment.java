@@ -71,6 +71,15 @@ public class OverviewFragment extends Fragment {
 
     TextView rootAccessStatus = view.findViewById(R.id.root_access_status);
     MaterialButton rootAccessButton = view.findViewById(R.id.root_access_button);
+    MaterialButton advancedToolsToggle = view.findViewById(R.id.advanced_tools_toggle);
+    View rootAccessCard = view.findViewById(R.id.root_access_card);
+    advancedToolsToggle.setOnClickListener(
+        v -> {
+          boolean show = rootAccessCard.getVisibility() != View.VISIBLE;
+          rootAccessCard.setVisibility(show ? View.VISIBLE : View.GONE);
+          advancedToolsToggle.setText(
+              show ? "Sembunyikan alat lanjutan" : "Alat lanjutan: periksa akses root");
+        });
     rootAccessButton.setOnClickListener(
         v -> {
           rootAccessButton.setEnabled(false);
