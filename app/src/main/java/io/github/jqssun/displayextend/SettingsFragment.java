@@ -22,6 +22,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.slider.Slider;
 import dev.rikka.tools.refine.Refine;
 import io.github.jqssun.displayextend.shizuku.PermissionManager;
@@ -91,6 +92,15 @@ public class SettingsFragment extends Fragment {
     stayOnWhilePluggedCheckbox = view.findViewById(R.id.stay_on_while_plugged_checkbox);
     autoScreenOffCheckbox = view.findViewById(R.id.auto_screen_off_checkbox);
     showSystemSettingNamesSwitch = view.findViewById(R.id.show_system_setting_names_switch);
+    View advancedDisplayOptions = view.findViewById(R.id.advanced_display_options);
+    MaterialButton advancedDisplayToggle = view.findViewById(R.id.advanced_display_options_toggle);
+    advancedDisplayToggle.setOnClickListener(
+        v -> {
+          boolean show = advancedDisplayOptions.getVisibility() != View.VISIBLE;
+          advancedDisplayOptions.setVisibility(show ? View.VISIBLE : View.GONE);
+          advancedDisplayToggle.setText(
+              show ? "Sembunyikan pengaturan layar lanjutan" : "Pengaturan layar lanjutan");
+        });
     matchContentFrameRateRow = view.findViewById(R.id.match_content_frame_rate_row);
     matchContentFrameRateSpinner = view.findViewById(R.id.match_content_frame_rate_spinner);
     trackingSpeedSlider = view.findViewById(R.id.tracking_speed_slider);
