@@ -16,7 +16,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             app:cardBackgroundColor="?attr/colorPrimaryContainer"
             app:cardCornerRadius="22dp"
             app:cardElevation="2dp"
@@ -127,8 +127,19 @@
         </com.google.android.material.card.MaterialCardView>
 
         <!-- Optional root access: requested only after explicit user action -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/advanced_tools_toggle"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
+            android:text="Alat lanjutan: periksa akses root"
+            android:contentDescription="Tampilkan atau sembunyikan pemeriksaan akses root" />
+
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/root_access_card"
+            android:visibility="gone"
             style="@style/Widget.Material3.CardView.Elevated"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
