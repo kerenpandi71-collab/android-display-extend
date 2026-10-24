@@ -92,7 +92,6 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <!-- Auto-open last app -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -107,10 +106,14 @@
                     android:layout_weight="1"
                     android:orientation="vertical"
                     android:layout_marginEnd="16dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/auto_open_last_app"
                         android:textAppearance="?attr/textAppearanceBodyLarge" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/auto_open_last_app_desc"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?colorOnSurfaceVariant"
@@ -122,7 +125,6 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
-            <!-- Floating button -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -137,10 +139,14 @@
                     android:layout_weight="1"
                     android:orientation="vertical"
                     android:layout_marginEnd="16dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/floating_button"
                         android:textAppearance="?attr/textAppearanceBodyLarge" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/floating_button_desc"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?colorOnSurfaceVariant"
@@ -152,7 +158,6 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
-            <!-- Floating button: force landscape -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -167,10 +172,14 @@
                     android:layout_weight="1"
                     android:orientation="vertical"
                     android:layout_marginEnd="16dp">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/floating_button_force_landscape"
                         android:textAppearance="?attr/textAppearanceBodyLarge" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:text="@string/floating_button_force_landscape_desc"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
                         android:textColor="?colorOnSurfaceVariant"
@@ -182,7 +191,6 @@
                     android:layout_height="wrap_content" />
             </LinearLayout>
 
-            <!-- On-screen keyboard location -->
             <LinearLayout
                 android:id="@+id/ime_policy_row"
                 android:layout_width="match_parent"
@@ -218,10 +226,9 @@
                     android:layout_height="wrap_content"
                     android:minWidth="160dp" />
             </LinearLayout>
-
         </LinearLayout>
 
-        <!-- Display Configuration -->
+        <!-- Essential display controls -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -245,19 +252,25 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="@string/resolution_label"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
-                <TextView android:id="@+id/resolution_text"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:id="@+id/resolution_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?colorOnSurfaceVariant" />
             </LinearLayout>
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/edit_resolution_button"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="@string/edit" android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/edit"
+                android:visibility="gone"
                 style="@style/Widget.Material3.Button.TextButton" />
         </LinearLayout>
 
@@ -276,18 +289,23 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="@string/scale_label"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
-                <TextView android:id="@+id/scale_text"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:id="@+id/scale_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?colorOnSurfaceVariant" />
             </LinearLayout>
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/edit_scale_button"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:text="@string/edit"
                 style="@style/Widget.Material3.Button.TextButton" />
         </LinearLayout>
@@ -315,19 +333,25 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="@string/dpi_label"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
-                <TextView android:id="@+id/dpi_text"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:id="@+id/dpi_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?colorOnSurfaceVariant" />
             </LinearLayout>
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/edit_dpi_button"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="@string/edit" android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/edit"
+                android:visibility="gone"
                 style="@style/Widget.Material3.Button.TextButton" />
         </LinearLayout>
 
@@ -354,56 +378,42 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="@string/rotation_label"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
-                <TextView android:id="@+id/user_rotation_text"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                <TextView
+                    android:id="@+id/user_rotation_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?colorOnSurfaceVariant" />
             </LinearLayout>
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/edit_rotation_button"
-                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:text="@string/edit" android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/edit"
+                android:visibility="gone"
                 style="@style/Widget.Material3.Button.TextButton" />
         </LinearLayout>
 
-        <!-- Display Info -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/display_info_header"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
-            android:textColor="?colorPrimary"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="4dp" />
-
-        <LinearLayout
-            android:id="@+id/info_table"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-
-        <!-- Advanced -->
+        <!-- Technical diagnostics intentionally hidden from the user-facing detail screen. -->
         <TextView
             android:id="@+id/shizuku_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/advanced_info_header"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
-            android:textColor="?colorPrimary"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="4dp" />
+            android:visibility="gone" />
 
         <LinearLayout
             android:id="@+id/shizuku_card"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
             <LinearLayout
                 android:id="@+id/shizuku_table"
                 android:layout_width="match_parent"
@@ -411,23 +421,26 @@
                 android:orientation="vertical" />
         </LinearLayout>
 
-        <!-- Supported display modes -->
         <TextView
             android:id="@+id/supported_modes_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/supported_modes_header"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
-            android:textColor="?colorPrimary"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="4dp" />
+            android:visibility="gone" />
 
         <LinearLayout
             android:id="@+id/modes_table"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:orientation="vertical"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/info_table"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone" />
 
     </LinearLayout>
 </ScrollView>
