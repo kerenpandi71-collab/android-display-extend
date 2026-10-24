@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
+    android:background="#000000"
     android:orientation="vertical">
 
     <!-- Top bar -->
@@ -14,8 +15,9 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="12dp">
+        android:paddingHorizontal="12dp"
+        android:paddingTop="8dp"
+        android:background="#000000">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/switch_mode_button"
@@ -45,20 +47,21 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="16dp">
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="10dp">
 
         <LinearLayout
             android:id="@+id/touchpad_area"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:padding="24dp"
-            android:background="@drawable/touchpad_background"
+            android:padding="16dp"
+            android:background="#000000"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/touchpad_gesture_hint"
+                android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textAppearance="?attr/textAppearanceBodyMedium"
@@ -71,6 +74,7 @@
 
             <LinearLayout
                 android:id="@+id/touchpad_button_hints"
+                android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
@@ -109,10 +113,10 @@
 
         <View
             android:id="@+id/scroll_strip"
-            android:layout_width="24dp"
+            android:layout_width="18dp"
             android:layout_height="match_parent"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/scroll_track_background" />
+            android:layout_marginStart="6dp"
+            android:background="#000000" />
     </LinearLayout>
 
     <!-- Bottom action buttons -->
@@ -120,16 +124,16 @@
         android:id="@+id/bottom_buttons"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="16dp"
-        android:paddingBottom="16dp"
+        android:paddingHorizontal="8dp"
+        android:paddingBottom="10dp"
         android:orientation="horizontal"
         android:gravity="center">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/back_button"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_margin="8dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_margin="4dp"
             app:icon="@drawable/ic_back"
             app:iconGravity="textStart"
             android:contentDescription="@string/back_button"

@@ -167,8 +167,8 @@ public class DisplayDetailFragment extends Fragment {
     touchpadButton.setOnClickListener(
         v -> TouchpadActivity.startTouchpad(getContext(), displayId, false));
     touchscreenButton = view.findViewById(R.id.touchscreen_button);
-    touchscreenButton.setOnClickListener(
-        v -> MirrorIntegrationHelper.openMirrorTouchscreen(requireContext(), displayId));
+    // External mirroring / AirPlay / casting integration is intentionally removed.
+    touchscreenButton.setVisibility(View.GONE);
 
     resetConfigButton = view.findViewById(R.id.reset_config_button);
     if (ShizukuUtils.hasShizukuStarted()) {
@@ -414,10 +414,15 @@ public class DisplayDetailFragment extends Fragment {
     }
     if (rotationText != null) _updateRotationText(rotationText);
 
-    _populateInfoTable(d, ctx);
-    Display.Mode currentMode = d.getMode();
-    _setupDisplayModes(d.getSupportedModes(), currentMode != null ? currentMode.getModeId() : -1);
-    _updateShizukuStatus();
+    // Keep the detail page focused on controls. Technical display diagnostics remain
+    // available in system logs rather than occupying the user-facing screen.
+    if (infoTable != null) infoTable.setVisibility(View.GONE);
+    if (shizukuTable != null) shizukuTable.setVisibility(View.GONE);
+    if (shizukuCard != null) shizukuCard.setVisibility(View.GONE);
+    if (supportedModesHeader != null) supportedModesHeader.setVisibility(View.GONE);
+    if (modesTable != null) modesTable.setVisibility(View.GONE);
+    View advancedHeader = getView() != null ? getView().findViewById(R.id.shizuku_header) : null;
+    if (advancedHeader != null) advancedHeader.setVisibility(View.GONE);
     _updateMirrorTouchscreenAction();
     _updateActionsVisibility();
   }
@@ -548,14 +553,8 @@ public class DisplayDetailFragment extends Fragment {
   }
 
   private void _updateMirrorTouchscreenAction() {
-    if (touchscreenButton == null || getContext() == null) {
-      return;
-    }
-    boolean showTouchscreen =
-        displayId != Display.DEFAULT_DISPLAY
-            && MirrorIntegrationHelper.isTouchscreenAvailableForDisplay(
-                requireContext(), displayId);
-    touchscreenButton.setVisibility(showTouchscreen ? View.VISIBLE : View.GONE);
+    // Kept as an empty compatibility hook while old callers are removed.
+    if (touchscreenButton != null) touchscreenButton.setVisibility(View.GONE);
   }
 
   private void _updateActionsVisibility() {

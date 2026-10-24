@@ -190,13 +190,8 @@ public class AppListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
   }
 
   private void _castApp(View v, ApplicationInfo app) {
-    if (!ShizukuUtils.hasPermission() && Pref.getLaunchTime(app.packageName) == 0) {
-      _openOnPhone(v, app);
-      Toast.makeText(
-              v.getContext(),
-              v.getContext().getString(R.string.first_launch_hint),
-              Toast.LENGTH_SHORT)
-          .show();
+    if (!ShizukuUtils.hasPermission() && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+      Toast.makeText(v.getContext(), v.getContext().getString(R.string.shizuku_required), Toast.LENGTH_SHORT).show();
       return;
     }
     Pref.setLastPackageName(app.packageName);

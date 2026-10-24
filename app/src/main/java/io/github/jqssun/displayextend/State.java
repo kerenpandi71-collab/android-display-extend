@@ -57,12 +57,129 @@ public class State {
   public static volatile IUserService userService;
   public static VirtualDisplay managedVirtualDisplay;
   public static int managedVirtualDisplayHostDisplayId = -1;
-  public static int mirrorDisplayId = -1;
   public static FloatingButtonService floatingButtonService;
   public static Activity isInPureBlackActivity = null;
 
   private static final android.os.Handler mainHandler =
       new android.os.Handler(android.os.Looper.getMainLooper());
+
+  private static final Object performanceLock = new Object();
+  private static final StringBuilder performanceBuffer = new StringBuilder();
+  private static java.util.concurrent.ScheduledExecutorService performanceExecutor;
+  private static volatile boolean performanceRecording;
+  private static long lastCursorSampleMs;
+  private static long cursorSampleCount;
+  private static long cursorIntervalSumMs;
+  private static long cursorSlowIntervals;
+  private static long cursorProcessingSumUs;
+  private static long cursorMaxProcessingUs;
+  private static final int MAX_PERFORMANCE_LOG_CHARS = 700_000;
+
+  public static boolean isPerformanceRecording() {
+    return performanceRecording;
+  }
+
+  public static void startPerformanceMonitor(Context context) {
+    synchronized (performanceLock) {
+      if (performanceRecording) return;
+      performanceRecording = true;
+      performanceBuffer.setLength(0);
+      lastCursorSampleMs = 0;
+      cursorSampleCount = cursorIntervalSumMs = cursorSlowIntervals = 0;
+      cursorProcessingSumUs = cursorMaxProcessingUs = 0;
+      appendPerformance("=== VIRTUAL DISPLAY PERFORMANCE RECORDING START ===");
+      appendPerformance("time=" + new java.util.Date());
+      appendPerformance("device=" + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL
+          + " android=" + android.os.Build.VERSION.RELEASE + " api=" + android.os.Build.VERSION.SDK_INT);
+      appendPerformance("Sampling system CPU/memory/display every 10 seconds; cursor movement samples are event-based.");
+      performanceExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "extend-performance-monitor");
+        t.setDaemon(true);
+        return t;
+      });
+      final String packageName = context.getPackageName();
+      performanceExecutor.scheduleAtFixedRate(() -> {
+        if (!performanceRecording) return;
+        long start = android.os.SystemClock.elapsedRealtime();
+        String command = "echo '--- SAMPLE " + new java.util.Date() + " ---'; "
+            + "dumpsys cpuinfo | head -n 15; "
+            + "dumpsys meminfo " + packageName + " | head -n 22; "
+            + "dumpsys display | grep -E 'DisplayDeviceInfo|mDisplayId|modeId|refreshRate' | head -n 30";
+        try {
+          Process p = new ProcessBuilder("su", "-c", command).redirectErrorStream(true).start();
+          boolean finished = p.waitFor(7, java.util.concurrent.TimeUnit.SECONDS);
+          if (!finished) {
+            p.destroyForcibly();
+            appendPerformance("SYSTEM_SAMPLE timeout after 7s");
+            return;
+          }
+          StringBuilder sample = new StringBuilder();
+          try (java.io.BufferedReader reader = new java.io.BufferedReader(
+              new java.io.InputStreamReader(p.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null && sample.length() < 10000) {
+              sample.append(line).append('\n');
+            }
+          }
+          appendPerformance("SYSTEM_SAMPLE elapsedMs=" + (android.os.SystemClock.elapsedRealtime() - start)
+              + " exit=" + p.exitValue() + "\n" + sample);
+        } catch (Throwable e) {
+          appendPerformance("SYSTEM_SAMPLE error=" + e);
+        }
+      }, 0, 10, java.util.concurrent.TimeUnit.SECONDS);
+    }
+  }
+
+  public static void recordCursorMovement(int displayId, float dx, float dy, long processingUs) {
+    if (!performanceRecording) return;
+    long now = android.os.SystemClock.elapsedRealtime();
+    synchronized (performanceLock) {
+      long interval = lastCursorSampleMs == 0 ? 0 : now - lastCursorSampleMs;
+      lastCursorSampleMs = now;
+      cursorSampleCount++;
+      cursorIntervalSumMs += interval;
+      if (interval > 24) cursorSlowIntervals++;
+      cursorProcessingSumUs += Math.max(0, processingUs);
+      cursorMaxProcessingUs = Math.max(cursorMaxProcessingUs, processingUs);
+      // Sample only every fourth event, plus any unusually slow interval/event.
+      // Keep all events in aggregate counters without formatting a line on every touch.
+      if ((cursorSampleCount % 4) == 0 || interval > 24 || processingUs > 4000) {
+        appendPerformance("CURSOR tMs=" + now + " display=" + displayId
+            + " dx=" + Math.round(dx * 100f) / 100f
+            + " dy=" + Math.round(dy * 100f) / 100f
+            + " eventIntervalMs=" + interval + " processingUs=" + processingUs);
+      }
+    }
+  }
+
+  public static String stopPerformanceMonitor() {
+    synchronized (performanceLock) {
+      performanceRecording = false;
+      if (performanceExecutor != null) {
+        performanceExecutor.shutdownNow();
+        performanceExecutor = null;
+      }
+      long n = cursorSampleCount;
+      appendPerformance("=== SUMMARY ===");
+      appendPerformance("cursorSamples=" + n
+          + " averageEventIntervalMs=" + (n > 1 ? (double) cursorIntervalSumMs / (n - 1) : 0)
+          + " intervalsOver24ms=" + cursorSlowIntervals
+          + " averageProcessingUs=" + (n > 0 ? (double) cursorProcessingSumUs / n : 0)
+          + " maxProcessingUs=" + cursorMaxProcessingUs);
+      appendPerformance("=== RECORDING STOP === time=" + new java.util.Date());
+      return performanceBuffer.toString();
+    }
+  }
+
+  private static void appendPerformance(String line) {
+    synchronized (performanceLock) {
+      if (performanceBuffer.length() > MAX_PERFORMANCE_LOG_CHARS) {
+        performanceBuffer.delete(0, performanceBuffer.length() / 3);
+        performanceBuffer.insert(0, "[older samples trimmed to limit memory usage]\n");
+      }
+      performanceBuffer.append(line).append('\n');
+    }
+  }
 
   public static final ServiceConnection userServiceConnection =
       new ServiceConnection() {
@@ -238,7 +355,7 @@ public class State {
 
     if (lastSingleAppDisplay != resolvedDisplayId) {
       State.log(
-          "reconciled cast display from " + lastSingleAppDisplay + " to " + resolvedDisplayId);
+          "reconciled selected app display from " + lastSingleAppDisplay + " to " + resolvedDisplayId);
       lastSingleAppDisplay = resolvedDisplayId;
     }
   }

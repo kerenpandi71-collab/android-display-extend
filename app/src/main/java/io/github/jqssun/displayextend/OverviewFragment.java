@@ -69,6 +69,42 @@ public class OverviewFragment extends Fragment {
             startActivity(
                 new Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rikkaapps/shizuku"))));
 
+    TextView rootAccessStatus = view.findViewById(R.id.root_access_status);
+    MaterialButton rootAccessButton = view.findViewById(R.id.root_access_button);
+    MaterialButton advancedToolsToggle = view.findViewById(R.id.advanced_tools_toggle);
+    View rootAccessCard = view.findViewById(R.id.root_access_card);
+    advancedToolsToggle.setOnClickListener(
+        v -> {
+          boolean show = rootAccessCard.getVisibility() != View.VISIBLE;
+          rootAccessCard.setVisibility(show ? View.VISIBLE : View.GONE);
+          advancedToolsToggle.setText(
+              show ? "Sembunyikan alat lanjutan" : "Alat lanjutan: periksa akses root");
+        });
+    rootAccessButton.setOnClickListener(
+        v -> {
+          rootAccessButton.setEnabled(false);
+          rootAccessStatus.setText(R.string.root_access_waiting);
+          new Thread(
+                  () -> {
+                    RootAccess.Result result = RootAccess.check();
+                    if (!isAdded()) return;
+                    requireActivity().runOnUiThread(
+                        () -> {
+                          rootAccessButton.setEnabled(true);
+                          if (result.success && result.output.contains("uid=0")) {
+                            rootAccessStatus.setText(R.string.root_access_granted);
+                            rootAccessButton.setText(R.string.root_access_ready);
+                          } else {
+                            rootAccessStatus.setText(R.string.root_access_unavailable);
+                            rootAccessButton.setText(R.string.root_access_check_again);
+                          }
+                        });
+                  })
+              .start();
+        });
+
+    view.findViewById(R.id.overlay_display_manager_btn).setOnClickListener(v -> startActivity(new Intent(requireContext(), OverlayDisplayActivity.class)));
+
     shizukuPermissionBtn = view.findViewById(R.id.shizuku_permission_btn);
     shizukuPermissionBtn.setOnClickListener(v -> State.startNewJob(new AcquireShizuku()));
 
@@ -86,17 +122,6 @@ public class OverviewFragment extends Fragment {
     permissionsStatusTitle = view.findViewById(R.id.permissions_status_title);
     permissionsStatusDetail = view.findViewById(R.id.permissions_status_detail);
     permissionsStatusIcon = view.findViewById(R.id.permissions_status_icon);
-
-    MaterialButton openCastBtn = view.findViewById(R.id.open_cast_btn);
-    Intent castIntent = new Intent(android.provider.Settings.ACTION_CAST_SETTINGS);
-    boolean castAvailable =
-        castIntent.resolveActivity(requireContext().getPackageManager()) != null;
-    openCastBtn.setEnabled(castAvailable);
-    if (castAvailable) {
-      openCastBtn.setOnClickListener(v -> startActivity(castIntent));
-    }
-    view.findViewById(R.id.open_mirror_overview_btn)
-        .setOnClickListener(v -> MirrorIntegrationHelper.openMirrorOverview(requireContext()));
 
     view.findViewById(R.id.screen_off_button)
         .setOnClickListener(
@@ -189,7 +214,7 @@ public class OverviewFragment extends Fragment {
     List<Display> displayList = new ArrayList<>();
     for (Display d : displays) {
       if (d.getDisplayId() != State.managedVirtualDisplayHostDisplayId
-          && d.getDisplayId() != State.mirrorDisplayId) {
+) {
         displayList.add(d);
       }
     }

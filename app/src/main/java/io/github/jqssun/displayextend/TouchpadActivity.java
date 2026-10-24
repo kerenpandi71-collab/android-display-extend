@@ -57,6 +57,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class TouchpadActivity extends AppCompatActivity {
+  private static volatile TouchpadActivity activeInstance;
 
   public static final int INJECT_INPUT_EVENT_MODE_ASYNC = 0;
   private View touchpadArea;
@@ -205,6 +206,7 @@ public class TouchpadActivity extends AppCompatActivity {
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    activeInstance = this;
     setContentView(R.layout.activity_touchpad);
 
     touchpadRoot = findViewById(R.id.touchpad_root);
@@ -275,6 +277,29 @@ public class TouchpadActivity extends AppCompatActivity {
             v -> {
               launchLastPackage(this, displayId);
             });
+
+    if (bottomButtons instanceof android.view.ViewGroup) {
+      MaterialButton floatingKeyboardButton = new MaterialButton(this);
+      floatingKeyboardButton.setText("Floating keyboard");
+      floatingKeyboardButton.setTextSize(12);
+      floatingKeyboardButton.setOnClickListener(
+          v -> {
+            if (!Settings.canDrawOverlays(this)) {
+              Intent overlayIntent =
+                  new Intent(
+                      Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                      Uri.parse("package:" + getPackageName()));
+              startActivity(overlayIntent);
+              Toast.makeText(this, "Allow overlay permission, then tap Floating keyboard again.", Toast.LENGTH_LONG).show();
+              return;
+            }
+            Intent keyboardIntent = new Intent(this, FloatingKeyboardService.class);
+            keyboardIntent.setAction(FloatingKeyboardService.ACTION_SHOW);
+            keyboardIntent.putExtra(FloatingKeyboardService.EXTRA_DISPLAY_ID, displayId);
+            startService(keyboardIntent);
+          });
+      ((android.view.ViewGroup) bottomButtons).addView(floatingKeyboardButton);
+    }
 
     _setupModeSpinner();
 
@@ -455,6 +480,107 @@ public class TouchpadActivity extends AppCompatActivity {
           _replayBufferedEvents();
           return true;
         });
+  }
+
+  /**
+   * Shares the existing built-in trackpad cursor with the floating keyboard.
+   * Coordinates are absolute pixels on the requested secondary display.
+   */
+  public static float[] getFloatingTrackpadCursor(int targetDisplayId) {
+    TouchpadActivity activity = activeInstance;
+    if (activity == null || activity.displayId != targetDisplayId || activity.isFinishing()) {
+      return null;
+    }
+    return new float[] {
+      activity.cursorX + activity.halfWidth,
+      activity.cursorY + activity.halfHeight
+    };
+  }
+
+  public static boolean moveFloatingTrackpadCursor(
+      int targetDisplayId, float absoluteX, float absoluteY) {
+    TouchpadActivity activity = activeInstance;
+    if (activity == null || activity.displayId != targetDisplayId || activity.isFinishing()) {
+      return false;
+    }
+    activity.cursorX = Math.max(
+        -activity.halfWidth, Math.min(absoluteX - activity.halfWidth, activity.halfWidth));
+    activity.cursorY = Math.max(
+        -activity.halfHeight, Math.min(absoluteY - activity.halfHeight, activity.halfHeight));
+    activity._updateCursorPosition(0, 0);
+    return activity.cursorView != null || activity.useAccessibilityCursor;
+  }
+
+  public static boolean scrollFloatingTrackpad(int targetDisplayId, float amount) {
+    TouchpadActivity activity = activeInstance;
+    if (activity == null || activity.displayId != targetDisplayId || activity.isFinishing()) {
+      return false;
+    }
+    activity.ipcExecutor.execute(() -> activity._injectScroll(amount));
+    return true;
+  }
+
+  /**
+   * Reuses the built-in trackpad's touch replay path for left-clicks. This avoids
+   * treating cursor movement as a hardware mouse on Android virtual displays.
+   */
+  public static boolean clickFloatingTrackpad(int targetDisplayId, int button) {
+    TouchpadActivity activity = activeInstance;
+    if (activity == null || activity.displayId != targetDisplayId || activity.isFinishing()) {
+      return false;
+    }
+
+    if (button == MotionEvent.BUTTON_SECONDARY) {
+      if (activity.inputManager == null) return false;
+      activity.ipcExecutor.execute(() -> {
+        long now = SystemClock.uptimeMillis();
+        activity._injectMouseEvent(
+            now, now, MotionEvent.ACTION_DOWN, 0, MotionEvent.BUTTON_SECONDARY);
+        activity._injectMouseEvent(
+            now, now, MotionEvent.ACTION_BUTTON_PRESS,
+            MotionEvent.BUTTON_SECONDARY, MotionEvent.BUTTON_SECONDARY);
+        activity._injectMouseEvent(
+            now, now, MotionEvent.ACTION_BUTTON_RELEASE, MotionEvent.BUTTON_SECONDARY, 0);
+        activity._injectMouseEvent(now, now, MotionEvent.ACTION_UP, 0, 0);
+      });
+      return true;
+    }
+
+    if (activity.inputManager == null
+        && (Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+            || TouchpadAccessibilityService.getInstance() == null)) {
+      return false;
+    }
+
+    activity._cancelPendingTapReplay();
+    activity._recyclePendingTapEvents();
+    long downTime = SystemClock.uptimeMillis();
+    float x = activity.cursorX + activity.halfWidth;
+    float y = activity.cursorY + activity.halfHeight;
+    MotionEvent.PointerProperties[] properties = {new MotionEvent.PointerProperties()};
+    properties[0].id = 0;
+    properties[0].toolType = MotionEvent.TOOL_TYPE_FINGER;
+    MotionEvent.PointerCoords[] coordinates = {new MotionEvent.PointerCoords()};
+    coordinates[0].x = x;
+    coordinates[0].y = y;
+    coordinates[0].pressure = 1f;
+    coordinates[0].size = 1f;
+
+    MotionEvent down = MotionEvent.obtain(
+        downTime, downTime, MotionEvent.ACTION_DOWN, 1, properties, coordinates,
+        0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+    MotionEvent.PointerCoords[] upCoordinates = {new MotionEvent.PointerCoords()};
+    upCoordinates[0].x = x;
+    upCoordinates[0].y = y;
+    upCoordinates[0].pressure = 0f;
+    upCoordinates[0].size = 1f;
+    MotionEvent up = MotionEvent.obtain(
+        downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 1, properties, upCoordinates,
+        0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+    activity.gestureState.pendingTapEvents.add(down);
+    activity.gestureState.pendingTapEvents.add(up);
+    activity._replayPendingTap();
+    return true;
   }
 
   public static void launchLastPackage(Context context, int displayId) {
@@ -1313,6 +1439,7 @@ public class TouchpadActivity extends AppCompatActivity {
 
   @Override
   protected void onDestroy() {
+    if (activeInstance == this) activeInstance = null;
     super.onDestroy();
     _cancelPendingTapReplay();
     _recyclePendingTapEvents();

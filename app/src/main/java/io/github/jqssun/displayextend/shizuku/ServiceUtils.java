@@ -190,7 +190,7 @@ public class ServiceUtils {
     PackageManager packageManager = context.getPackageManager();
     Intent launchIntent = packageManager.getLaunchIntentForPackage(packageName);
     if (launchIntent != null) {
-      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
       ActivityOptions options = ActivityOptions.makeBasic();
       options.setLaunchDisplayId(targetDisplayId);
       context.startActivity(launchIntent, options.toBundle());
@@ -204,7 +204,7 @@ public class ServiceUtils {
       String packageName, Context context, int targetDisplayId) {
     try {
       Intent intent = new Intent(Intent.ACTION_MAIN);
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
       intent.addCategory(Intent.CATEGORY_LAUNCHER);
       PackageManager packageManager = context.getPackageManager();
       ComponentName componentName =
